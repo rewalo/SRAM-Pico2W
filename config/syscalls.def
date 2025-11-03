@@ -1,0 +1,50 @@
+// Syscall definitions - format: SYSCALL(name, return_type, (args...))
+// These generate wrappers that app calls, which forward to kernel implementations
+// Maximum supported: 30 arguments per syscall
+
+// GPIO functions
+SYSCALL(pinMode,        void,    (uint8_t pin, uint8_t mode))
+SYSCALL(digitalWrite,   void,    (uint8_t pin, uint8_t val))
+SYSCALL(digitalRead,    int,     (uint8_t pin))
+
+// Timing functions
+SYSCALL(delay,          void,    (uint32_t ms))
+SYSCALL(delayMicroseconds, void, (unsigned int us))
+SYSCALL(millis,         uint32_t,())
+SYSCALL(micros,         uint32_t,())
+
+// Analog I/O
+SYSCALL(analogRead,     int,     (uint8_t pin))
+SYSCALL(analogWrite,    void,    (uint8_t pin, int value))
+
+// Serial communication
+SYSCALL(Serial_begin,     void,   (unsigned long baud))
+SYSCALL(Serial_write_b,   size_t, (uint8_t b))
+SYSCALL(Serial_available, int,    ())
+SYSCALL(Serial_read,      int,    ())
+SYSCALL(Serial_peek,      int,    ())
+SYSCALL(Serial_flush,     void,   ())
+SYSCALL(Serial_print_s,   size_t, (const char* s))
+SYSCALL(Serial_println_s, size_t, (const char* s))
+SYSCALL(Serial_println,   size_t, ())
+
+// SPI communication
+SYSCALL(SPI_begin,          void,   ())
+SYSCALL(SPI_end,            void,   ())
+// Note: beginTransaction takes SPISettings, but we'll handle it with method_cast
+SYSCALL(SPI_beginTransaction, void, ())
+SYSCALL(SPI_endTransaction, void,   ())
+SYSCALL(SPI_transfer,       uint8_t, (uint8_t data))
+
+// Wire (I2C) communication
+SYSCALL(Wire_begin,            void,   ())
+SYSCALL(Wire_end,              void,   ())
+SYSCALL(Wire_beginTransmission, void,  (uint8_t address))
+SYSCALL(Wire_endTransmission,  uint8_t, ())
+// Note: requestFrom returns size_t and takes (uint8_t, size_t), not uint8_t
+SYSCALL(Wire_requestFrom,      size_t, (uint8_t address, size_t quantity))
+// Note: Wire::write() methods - map write_b to write, write_buf to write
+SYSCALL(Wire_write_b,          size_t,  (uint8_t data))
+SYSCALL(Wire_write_buf,        size_t,  (const uint8_t* data, size_t length))
+SYSCALL(Wire_available,        int,    ())
+SYSCALL(Wire_read,             int,    ())

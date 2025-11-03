@@ -1,0 +1,33 @@
+# Build artifacts
+app/build/
+app/temp/
+*.o
+*.elf
+*.bin
+*.map
+*.hex
+*.a
+*.so
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Compiled documentation
+*.pdf
+
+# Arduino build files
+*.cache/
+

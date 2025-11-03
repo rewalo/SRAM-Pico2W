@@ -1,0 +1,1063 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---------- Encoding, fonts, microtype ----------
+\usepackage[utf8]{inputenc}       % If you compile with pdflatex
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[final]{microtype}
+
+% ---------- Geometry & layout ----------
+\usepackage[margin=2.5cm,headsep=0.5cm,footskip=1cm]{geometry}
+\usepackage{ragged2e} % \raggedbottom
+\raggedbottom
+
+% ---------- Graphics & color ----------
+\usepackage{graphicx}
+\usepackage{xcolor}
+\definecolor{sectionblue}{RGB}{30,90,180}
+\definecolor{subsectionblue}{RGB}{50,110,200}
+\definecolor{subsubsectionblue}{RGB}{70,130,220}
+
+% ---------- Headers/footers ----------
+\usepackage{fancyhdr}
+\setlength{\headheight}{14pt}  % Fix fancyhdr warning
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}  % no header line
+\fancyfoot[C]{\thepage}
+
+% Plain style (used e.g. by ToC); ensure footer page number appears.
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \fancyfoot[C]{\thepage}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \renewcommand{\footrulewidth}{0pt}%
+}
+
+% ---------- Section formatting ----------
+\usepackage[uppercase=false]{titlesec}
+\titleformat{\section}
+  {\Large\bfseries\color{sectionblue}}
+  {\thesection}{0.8em}{}
+  [\vspace{-0.5em}\rule{\linewidth}{0.8pt}\vspace{0.5em}]
+\titlespacing*{\section}{0pt}{24pt}{16pt}
+
+\titleformat{\subsection}
+  {\large\bfseries\color{subsectionblue}}
+  {\thesubsection}{0.8em}{}
+\titlespacing*{\subsection}{0pt}{16pt}{12pt}
+
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\color{subsubsectionblue}}
+  {\thesubsubsection}{0.8em}{}
+\titlespacing*{\subsubsection}{0pt}{14pt}{10pt}
+
+% Depths for numbering and ToC
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+
+% ---------- TOC look ----------
+\usepackage{tocloft}
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+% Tighten TOC vertical spacing a bit
+\setlength{\cftbeforesecskip}{2pt}
+\setlength{\cftbeforesubsecskip}{1pt}
+\setlength{\cftbeforesubsubsecskip}{0pt}
+
+% ---------- Lists ----------
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+\setlist[itemize]{label=\textbullet\ }
+\setlist[enumerate]{label=\arabic*., ref=\arabic*}
+
+% ---------- Tables ----------
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\renewcommand{\arraystretch}{1.25}
+\setlength{\tabcolsep}{0.42cm}
+
+% ---------- Math ----------
+\usepackage{amsmath}
+
+% ---------- Boxes ----------
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable,skins}
+\newtcolorbox{infobox}[1]{breakable,
+  colback=blue!5!white,
+  colframe=blue!75!black,
+  title=#1,
+  fonttitle=\bfseries,
+  boxrule=1pt,
+  arc=2pt,
+  left=6pt,right=6pt,top=6pt,bottom=6pt
+}
+\newtcolorbox{warningbox}[1]{breakable,
+  colback=orange!5!white,
+  colframe=orange!75!black,
+  title=#1,
+  fonttitle=\bfseries,
+  boxrule=1pt,
+  arc=2pt,
+  left=6pt,right=6pt,top=6pt,bottom=6pt
+}
+\newtcolorbox{codebox}{breakable,
+  colback=gray!5!white,
+  colframe=gray!50!black,
+  boxrule=0.5pt,
+  arc=2pt,
+  left=6pt,right=6pt,top=6pt,bottom=6pt,
+  fontupper=\small\ttfamily
+}
+
+% ---------- Code listings ----------
+\usepackage{listings}
+\lstdefinestyle{tightcode}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=leftline,
+  framerule=2pt,
+  rulecolor=\color{blue!60},
+  backgroundcolor=\color{blue!5},
+  numbers=left,
+  numbersep=8pt,
+  numberstyle=\tiny\color{gray!70},
+  keywordstyle=\color{blue!80}\bfseries,
+  stringstyle=\color{red!70},
+  commentstyle=\color{green!50!black}\itshape,
+  tabsize=2,
+  showstringspaces=false,
+  xleftmargin=15pt,
+  xrightmargin=5pt,
+  aboveskip=8pt,
+  belowskip=8pt
+}
+\lstset{style=tightcode}
+\lstdefinelanguage{bash}{
+  morekeywords={sudo,make,cmake,git,python,python3,conda,pip},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]"
+}
+
+% ---------- Graphics/diagrams helpers ----------
+\usepackage{tikz}
+\usepackage{multicol}
+\usepackage{needspace}
+
+% ---------- Hyperlinks (load near last) ----------
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  filecolor=magenta,
+  urlcolor=cyan,
+  pdftitle={SRAM-Pico2W Technical Documentation},
+  pdfauthor={rewalo},
+  pdfpagemode=UseOutlines,
+  pdfstartview=FitH
+}
+
+% ---------- Useful helpers ----------
+\newcommand{\code}[1]{\texttt{#1}}
+
+% ------------------------------------------------
+\begin{document}
+
+% Title page shows page 1
+\setcounter{page}{1}
+
+\begin{titlepage}
+  \thispagestyle{plain} % ← gives it a footer with page number
+  \centering
+  \vspace*{3cm}
+
+  {\Huge\bfseries SRAM-Pico2W\\[0.8ex]}
+  {\LARGE Technical Documentation}\\[3cm]
+
+  \vspace{1.5cm}
+  \begin{tabular}{@{}l@{\hspace{1.5em}}l@{}}
+    \textbf{Target Platform:} & Raspberry Pi Pico 2 / Pico 2 W (RP2350) \\
+    \textbf{Architecture:} & ARM Cortex-M33 \\
+    \textbf{Author:} & rewalo \\
+  \end{tabular}
+
+  \vfill
+
+  \begin{minipage}{0.85\textwidth}
+    \centering
+    \large
+    SRAM-Pico2W is a firmware architecture for the Raspberry Pi Pico 2 that enables running Arduino-style applications entirely from Static RAM (SRAM) while maintaining a minimal, flash-resident kernel. This design provides a clean separation between a persistent kernel layer and an application layer, enabling rapid development cycles and efficient memory utilization.
+  \end{minipage}
+
+  \vfill
+  \vspace{1cm}
+  This documentation is maintained alongside the source code.
+\end{titlepage}
+
+\clearpage
+\setcounter{page}{2}
+
+% ----- Table of Contents -----
+\tableofcontents
+\clearpage
+\setcounter{page}{4}
+
+% ---------- Main content ----------
+\section{Abstract}
+
+SRAM-Pico2W is a two-layer firmware architecture for the Raspberry Pi Pico 2 and Pico 2 W (RP2350 microcontroller). Its primary purpose is to enable running Arduino-style applications entirely from Static RAM (SRAM) while maintaining all Arduino core libraries and hardware drivers in flash memory. This design provides a clean separation between a persistent kernel layer and an application layer that can be updated by rebuilding and reflashing the kernel.
+
+The system uses a syscall-based communication mechanism that allows applications to request hardware services from the kernel. Applications are compiled separately and embedded into the kernel binary at build time, then loaded into SRAM at runtime. This architecture enables rapid development cycles where only the application code needs to be rebuilt, while the kernel remains stable in flash memory.
+
+For deployment, a single build script compiles the application and embeds it into the kernel, requiring only the kernel binary to be uploaded to the device flash memory.
+
+\section{User's Manual}
+
+This chapter provides step-by-step instructions for building, deploying, and using SRAM-Pico2W applications.
+
+\subsection{Prerequisites}
+
+\begin{itemize}
+  \item Windows computer (build scripts use batch files)
+  \item Python 3 installed
+  \item Arduino IDE installed
+  \item RP2040 board support installed in Arduino IDE:
+    \begin{itemize}
+      \item Board package: \code{Raspberry Pi Pico/RP2040 by Earle Philhower}
+    \end{itemize}
+  \item Raspberry Pi Pico 2 or Pico 2 W
+  \item USB cable (data-capable, not charge-only)
+\end{itemize}
+
+\subsection{Building an Application}
+
+\subsubsection{Step 1: Compile Application}
+
+Execute \code{build.bat} from the project root directory:
+
+\begin{lstlisting}[language=bash]
+build.bat
+\end{lstlisting}
+
+This script performs the following operations:
+
+\begin{enumerate}
+  \item Generates syscall wrapper code from \code{syscalls.def}
+  \item Compiles the application code (\code{app/app.ino}) and support files
+  \item Links the application with a custom SRAM memory map
+  \item Converts the ELF binary to raw binary format
+  \item Embeds the binary into \code{kernel/src/generated/rawData.h}
+\end{enumerate}
+
+The build process shows progress for each step and reports the final binary size.
+
+\subsubsection{Step 2: Upload Kernel}
+
+\begin{enumerate}
+  \item Open \code{kernel/kernel.ino} in Arduino IDE
+  \item Select board: \code{Tools > Board > Raspberry Pi RP2040 Boards > Raspberry Pi Pico 2W}
+  \item Select COM port: \code{Tools > Port > [your Pico's port]}
+  \item Click \code{Upload} (Ctrl+U)
+\end{enumerate}
+
+The kernel includes the embedded application binary and loads it into SRAM at boot.
+
+\subsubsection{Step 3: Monitor Output}
+
+\begin{enumerate}
+  \item Open Serial Monitor: \code{Tools > Serial Monitor} (Ctrl+Shift+M)
+  \item Set baud rate to 115200
+  \item Press Reset button on Pico
+  \item Observe boot messages and application output
+\end{enumerate}
+
+\subsection{Editing Application Code}
+
+Application code is located in \code{app/app.ino}. After editing:
+
+\begin{enumerate}
+  \item Run \code{build.bat} to rebuild the application
+  \item Upload the kernel again (application is embedded in kernel)
+  \item Reset the device to load the new application
+\end{enumerate}
+
+\subsection{Adding New Syscalls}
+
+To expose additional Arduino functions to applications:
+
+\begin{enumerate}
+  \item Open \code{syscalls.def}
+  \item Add a new line: \code{SYSCALL(name, returnType, (args...))}
+  \item Run \code{build.bat}
+  \item Upload kernel
+  \item Use the function in application code
+\end{enumerate}
+
+\begin{infobox}{Syscall Examples}
+\begin{lstlisting}[language=C]
+SYSCALL(analogRead, int, (int pin))
+SYSCALL(analogWrite, void, (int pin, int value))
+\end{lstlisting}
+\end{infobox}
+
+\begin{infobox}{Syscall Constraints}
+\begin{itemize}
+  \item Maximum 30 arguments per syscall
+  \item Arguments must be primitive types or pointers
+  \item Return types must fit in \code{uintptr\_t} or be \code{void}
+\end{itemize}
+\end{infobox}
+
+\section{System Architecture}
+
+\needspace{5\baselineskip}
+SRAM-Pico2W implements a two-layer architecture that separates persistent kernel services from application code:
+
+\vspace{0.2cm}
+\begin{itemize}[noitemsep]
+  \item \textbf{Kernel Layer} (Flash): Persistent, contains Arduino core, hardware drivers, and embedded application binary
+  \item \textbf{Application Layer} (SRAM): Loaded at runtime, contains only application code and data
+\end{itemize}
+
+\subsection{Memory Layout}
+
+\subsubsection{Flash Memory Organization}
+
+Flash memory contains:
+
+\begin{itemize}
+  \item Bootstrap code (Arduino runtime initialization)
+  \item FreeRTOS kernel
+  \item Application loader (\code{loader\_rawdata.cpp})
+  \item Syscall dispatcher (\code{kernel\_syscall\_dispatch.cpp})
+  \item Arduino Core libraries (Serial, GPIO, timing, etc.)
+  \item Embedded application binary (\code{rawData[]} array)
+\end{itemize}
+
+\subsubsection{SRAM Memory Organization}
+
+SRAM is organized starting at address \code{0x20030000}:
+
+\begin{verbatim}
+0x20030000: +-----------------+
+            | .app_hdr        | Application header + syscall gate
+            +-----------------+
+            | .text           | Application code
+            +-----------------+
+            | .data           | Initialized variables
+            +-----------------+
+            | .bss            | Zero-initialized data
+            +-----------------+
+            | __heap_start__  | Dynamic allocation (malloc/free)
+            | ...             |
+            | __heap_end__    | End of SRAM (0x200A0000)
+            +-----------------+
+\end{verbatim}
+
+\begin{infobox}{Memory Statistics}
+\textbf{Total SRAM Size:} 448 KB (0x00070000 bytes)
+\end{infobox}
+
+\subsection{Runtime Execution Flow}
+
+\begin{enumerate}
+  \item \textbf{Boot:} RP2350 ROM initializes hardware and loads kernel from flash
+  \item \textbf{Kernel setup():}
+    \begin{itemize}
+      \item Initializes serial communication (115200 baud)
+      \item Copies embedded application binary from flash (\code{rawData[]}) to SRAM at \code{0x20030000}
+      \begin{itemize}
+        \item Binary copy includes \code{.text} (code), \code{.data} (initialized variables), and \code{.app\_hdr} (header)
+      \end{itemize}
+      \item Zeros the BSS section (uninitialized static variables) using boundaries from app header
+      \item Validates application header (magic number \code{0x41505041} = ``APPA'')
+      \item Validates version number (\code{0x00020000})
+      \item Patches syscall gate pointer into application header
+      \item Calls \code{app\_setup()} once in kernel context
+      \item Launches FreeRTOS task for \code{app\_loop()}
+    \end{itemize}
+  \item \textbf{Application Execution:}
+    \begin{itemize}
+      \item Application code executes entirely from SRAM
+      \item Hardware access via syscall gate $\rightarrow$ kernel dispatcher
+      \item Kernel services execute from flash-resident code
+    \end{itemize}
+\end{enumerate}
+
+\needspace{15\baselineskip}
+\subsection{Component Interaction}
+
+The syscall mechanism works as follows:
+
+\begin{verbatim}
++--------------+
+| SRAM App     |
+|              |
+| Serial.print |--+
+| ("Hello")    |  | Inline wrapper
+|              |  | (generated)
+|              |  +--> app_syscalls.h
+|              |        |
++--------------+        |
+                         |
+                         v
+                 +-----------------+
+                 | __syscall_raw() | Low-level gate call
+                 | (app_sys_raw.c) |
+                 +--------+--------+
+                          | Function pointer
+                          | (patched at runtime)
+                          v
+                 +----------------------+
+                 | Kernel               |
+                 |                      |
+                 | KernelSyscallDispatch|
+                 |                      |
+                 | Jump table lookup    |
+                 | [id] -> handler      |
+                 | invoke(...)          |
+                 +-----------+----------+
+                             |
+                             v
+                 +----------------------+
+                 | Arduino Core         |
+                 | (in flash)           |
+                 |                      |
+                 | Serial.print()       |
+                 | Hardware access      |
+                 +----------------------+
+\end{verbatim}
+
+\section{Build System}
+
+\needspace{20\baselineskip}
+\subsection{Build Pipeline}
+
+\begin{verbatim}
++-------------+
+| syscalls.def| Master definition file
++------+------+ 
+       |
+       v
++------------------+
+| syscall_gen.py   | Python generator
++------+-----------+
+       |
+       +--> app/generated/app_syscalls.h
+       +--> app/generated/app_sys_raw.c
+       +--> app/generated/syscall_ids.h
+       +--> kernel/src/generated/kernel_sys_dispatch.inc.h
+       +--> kernel/src/generated/syscall_ids.h
+       +--> kernel/src/generated/syscall_names.inc.h
+       |
+       v
++------------------+
+| build.bat        | Build orchestration
++------+-----------+
+       |
+       +--> Compiles app.ino + support files
+       +--> Links with custom linker script (SRAM)
+       +--> Generates app.elf
+       +--> Converts to app.bin
+       +--> Embeds app.bin -> kernel/src/generated/rawData.h
+       |
+       v
++------------------+
+| Arduino IDE      | Kernel compilation
++------+-----------+
+       |
+       +--> Compiles kernel.ino + all kernel sources
+       +--> Includes embedded rawData.h
+       +--> Uploads to device flash
+\end{verbatim}
+
+\subsection{Critical Address Alignment}
+
+All components must agree on the SRAM base address \code{0x20030000}:
+
+\vspace{0.3cm}
+\begin{longtable}{p{3.2cm} p{5.2cm} p{4.6cm}}
+\toprule
+\textbf{Component} & \textbf{File} & \textbf{Location} \\
+\midrule
+\textbf{Linker Script} & \code{app/linker/memmap\_app\_ram.ld} & \code{ORIGIN = 0x20030000} \\
+\midrule
+\textbf{Loader} & \code{kernel/src/loader\_rawdata.cpp} & \code{kAppDst = 0x20030000} \\
+\midrule
+\textbf{Kernel} & \code{kernel/kernel.ino} & \code{kAppBaseAddr = 0x20030000} \\
+\bottomrule
+\end{longtable}
+
+\vspace{0.3cm}
+
+\begin{infobox}{Address Validation}
+The kernel performs the following validation checks:
+\begin{itemize}
+  \item Header magic validation: \code{0x41505041} = ``APPA''
+  \item Version validation: \code{0x00020000}
+  \item Mismatched addresses cause ``Invalid app header'' error
+\end{itemize}
+\end{infobox}
+
+\subsection{Build Configuration}
+
+The build system supports the following configuration options in \code{build.bat}:
+
+\begin{itemize}
+  \item \textbf{LIBC:} Enable/disable libc linking (ON/OFF)
+  \item \textbf{OPT\_LEVEL:} Optimization level (Os = size, O2 = speed, O0 = debug)
+  \item \textbf{CUSTOM\_LIBS:} Additional library paths
+  \item \textbf{CUSTOM\_INCLUDES:} Additional include directories
+  \item \textbf{VERBOSE:} Verbose build output (ON/OFF)
+\end{itemize}
+
+\section{Syscall System}
+
+The syscall system provides a controlled interface between SRAM-resident applications and flash-resident kernel services. This architecture design:
+
+\begin{enumerate}
+  \item Prevents direct hardware access from application code
+  \item Enables centralized hardware management in the kernel
+  \item Allows kernel updates without recompiling applications (with versioning)
+  \item Minimizes SRAM footprint by keeping Arduino core in flash
+\end{enumerate}
+
+\subsection{Syscall Definition Format}
+
+Syscalls are defined in \code{syscalls.def} using the following format:
+
+\begin{lstlisting}[language=C]
+SYSCALL(name, return_type, (arg1_type arg1, arg2_type arg2, ...))
+\end{lstlisting}
+
+\begin{infobox}{Syscall Constraints}
+\begin{itemize}
+  \item Maximum 30 arguments (system limit defined by \code{MAX\_SYSCALL\_ARGS})
+  \item Arguments must be primitive types or pointers
+  \item Return types must fit in \code{uintptr\_t} or be \code{void}
+\end{itemize}
+\end{infobox}
+
+\begin{infobox}{Syscall Examples}
+\begin{lstlisting}[language=C]
+SYSCALL(pinMode,        void,    (uint8_t pin, uint8_t mode))
+SYSCALL(digitalWrite,   void,    (uint8_t pin, uint8_t val))
+SYSCALL(digitalRead,    int,     (uint8_t pin))
+SYSCALL(Serial_print_s, size_t,  (const char* s))
+\end{lstlisting}
+\end{infobox}
+
+\subsection{Code Generation Process}
+
+\subsubsection{1. Enum Generation (\code{syscall\_ids.h})}
+
+The generator creates an enum with unique IDs for each syscall:
+
+\begin{lstlisting}[language=C]
+enum : unsigned {
+  SYSC_pinMode = 0,
+  SYSC_digitalWrite = 1,
+  SYSC_digitalRead = 2,
+  ...
+  SYSC__COUNT = 10
+};
+\end{lstlisting}
+
+\begin{warningbox}{Critical Constraint}
+Enum order must match \code{syscalls.def} order. Changing the order in \code{syscalls.def} changes syscall IDs and breaks binary compatibility between applications and kernel.
+\end{warningbox}
+
+\subsubsection{2. App-Side Wrappers (\code{app\_syscalls.h})}
+
+The generator creates inline wrapper functions for applications:
+
+\begin{lstlisting}[language=C]
+static inline void pinMode(uint8_t pin, uint8_t mode) {
+  uintptr_t _p0 = static_cast<uintptr_t>(pin);
+  uintptr_t _p1 = static_cast<uintptr_t>(mode);
+  uintptr_t _p2 = 0;
+  uintptr_t _p3 = 0;
+  // ... (all 30 parameters: _p0 through _p29, unused ones set to 0)
+  uintptr_t _p29 = 0;
+  __syscall_raw(SYSC_pinMode, _p0, _p1, _p2, _p3, _p4, _p5, 
+                _p6, _p7, _p8, _p9, _p10, _p11, _p12, _p13, _p14, _p15,
+                _p16, _p17, _p18, _p19, _p20, _p21, _p22, _p23, _p24, _p25,
+                _p26, _p27, _p28, _p29);
+}
+\end{lstlisting}
+
+\begin{infobox}{Type Safety}
+\begin{itemize}
+  \item Pointers: \code{reinterpret\_cast<uintptr\_t>(ptr)}
+  \item Primitives: \code{static\_cast<uintptr\_t>(value)}
+\end{itemize}
+\end{infobox}
+
+\subsubsection{3. Low-Level Gate (\code{app\_sys\_raw.c})}
+
+The gate function calls the syscall dispatcher via function pointer. The gate pointer is cached on first call to avoid repeated lookups:
+
+\begin{lstlisting}[language=C]
+static Gate cached_gate = NULL;
+
+uintptr_t __syscall_raw(uint16_t id, uintptr_t a0, uintptr_t a1,
+                        uintptr_t a2, uintptr_t a3, uintptr_t a4,
+                        uintptr_t a5, uintptr_t a6, uintptr_t a7,
+                        // ... (30 arguments total: a0 through a29)
+                        uintptr_t a28, uintptr_t a29) {
+  if (cached_gate == NULL) {
+    cached_gate = __syscall_gate_ptr();
+  }
+  return cached_gate(id, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9,
+                     a10, a11, a12, a13, a14, a15, a16, a17, a18, a19,
+                     a20, a21, a22, a23, a24, a25, a26, a27, a28, a29);
+}
+\end{lstlisting}
+
+\subsubsection{4. Kernel Dispatch (\code{kernel\_sys\_jumptable.inc.h})}
+
+\needspace{18\baselineskip}
+The kernel dispatcher uses a jump table for direct function pointer dispatch, avoiding switch statement overhead:
+
+\begin{lstlisting}[language=C]
+// Handler function for each syscall (takes all 30 arguments: a0 through a29)
+static inline uintptr_t handlePinMode(uintptr_t a0, uintptr_t a1, 
+                                       uintptr_t a2, ..., uintptr_t a29) {
+  return detail::invoke<&::pinMode>(a0, a1, a2, a3, a4, a5, ..., a29);
+}
+
+// Jump table array - direct indexing by syscall ID
+static const SyscallHandler syscallHandlers[] = {
+  &handlePinMode,
+  &handleDigitalWrite,
+  // ...
+};
+
+// Dispatch function uses direct array lookup
+if (id >= SYSC__COUNT) return -1;
+return syscallHandlers[id](a0, a1, a2, a3, a4, a5, a6, a7, a8, a9,
+                           a10, a11, a12, a13, a14, a15, a16, a17, a18, a19,
+                           a20, a21, a22, a23, a24, a25, a26, a27, a28, a29);
+\end{lstlisting}
+
+\section{Type Marshalling}
+
+\needspace{20\baselineskip}
+Arguments are passed as \code{uintptr\_t} values and unmarshalled by the kernel using template metaprogramming:
+
+\begin{lstlisting}[language=C++]
+template <typename T>
+static inline T cast_arg_uintptr(uintptr_t v) {
+  using U = std::remove_reference_t<T>;
+  if constexpr (std::is_pointer_v<U>) {
+    return reinterpret_cast<T>(v);  // Pointers
+  } else if constexpr (std::is_enum_v<U>) {
+    return static_cast<T>(v);       // Enums
+  } else if constexpr (std::is_integral_v<U>) {
+    return static_cast<T>(v);       // Integers
+  } else {
+    static_assert(!sizeof(U), "Unsupported syscall arg type");
+  }
+}
+\end{lstlisting}
+
+\begin{infobox}{Type Marshalling Limitations}
+\begin{itemize}
+  \item Complex structs by value are not supported (would require serialization)
+  \item Arrays must be passed as pointers
+  \item Callbacks/function pointers require special handling
+\end{itemize}
+\end{infobox}
+
+\section{Application Binary Format}
+
+\subsection{Header Structure}
+
+The application header is located at the start of the SRAM image in the \verb|.app_hdr| section:
+
+\begin{lstlisting}[language=C]
+typedef struct AppHeader {
+  uint32_t magic;          // 'APPA' = 0x41505041
+  uint32_t version;        // 0x00020000 (ABI version)
+  void (*app_setup)(void);
+  void (*app_loop)(void);
+  SyscallGate syscall_gate; // Patched by kernel at runtime
+  void* data_start;        // Start of .data section
+  void* data_end;          // End of .data section
+  void* bss_start;         // Start of BSS section (for zeroing)
+  void* bss_end;           // End of BSS section (for zeroing)
+  uint32_t* bss_marker;    // Pointer to BSS verification marker
+} AppHeader;
+\end{lstlisting}
+
+\begin{infobox}{Header Layout}
+\begin{itemize}
+  \item \textbf{Magic number:} Authentication check (must be \code{0x41505041})
+  \item \textbf{Version:} ABI compatibility validation (must be \code{0x00020000})
+  \item \textbf{Function pointers:} Entry points for kernel invocation (\code{app\_setup}, \code{app\_loop})
+  \item \textbf{Syscall gate:} Runtime-patched function pointer to kernel dispatcher
+  \item \textbf{Section boundaries:} Pointers to \code{.data} and \code{.bss} section boundaries for initialization
+  \item \textbf{BSS marker:} Pointer to verification marker used to confirm BSS zeroing
+\end{itemize}
+\end{infobox}
+
+\needspace{12\baselineskip}
+\subsection{Section Layout}
+
+\begin{verbatim}
+0x20030000: +-----------------+
+            | .app_hdr        | Header + syscall gate
+            +-----------------+
+            | .text           | Application code
+            +-----------------+
+            | .data           | Initialized variables
+            +-----------------+
+            | .bss            | Zero-initialized data
+            +-----------------+
+            | __heap_start__  | Dynamic allocation
+            | ...             |
+            | __heap_end__    | End of SRAM
+            +-----------------+
+\end{verbatim}
+
+\section{Proxy System for C++ Objects}
+
+\subsection{Design Pattern}
+
+Arduino-style C++ objects (e.g., \code{Serial}) are implemented using lightweight proxy classes that forward calls to syscalls:
+
+\begin{lstlisting}[language=C++]
+struct SerialProxy {
+  inline void begin(unsigned long baud) {
+    Serial_begin(baud);
+  }
+  inline size_t print(const char* s) {
+    return Serial_print_s(s);
+  }
+  inline void println(const char* s) {
+    return Serial_println_s(s);
+  }
+  // ...
+};
+
+inline SerialProxy Serial;  // Global instance
+\end{lstlisting}
+
+\begin{codebox}
+\textbf{Usage in Application:}
+\begin{lstlisting}[language=C++]
+Serial.begin(115200);      // Calls syscall
+Serial.println("Hello");   // Calls syscall
+\end{lstlisting}
+\end{codebox}
+
+\begin{infobox}{Proxy System Benefits}
+\begin{itemize}
+  \item Natural API usage (no change to application code style)
+  \item Zero runtime overhead (inline functions)
+  \item Type safety maintained
+\end{itemize}
+\end{infobox}
+
+\section{FreeRTOS Integration}
+
+\subsection{Task Structure}
+
+The kernel uses FreeRTOS to manage application execution:
+
+\begin{lstlisting}[language=C++]
+static void appTask(void*) {
+  AppHeader* hdr = reinterpret_cast<AppHeader*>(kAppBaseAddr);
+  for (;;) {
+    if (hdr->app_loop != nullptr) {
+      hdr->app_loop();
+    }
+    vTaskDelay(pdMS_TO_TICKS(1));  // Cooperative yield
+  }
+}
+\end{lstlisting}
+
+\begin{infobox}{FreeRTOS Design Decisions}
+\begin{itemize}
+  \item Application \code{loop()} runs in separate FreeRTOS task
+  \item 1ms cooperative yield prevents task starvation
+  \item Kernel \code{loop()} provides watchdog/management functions
+\end{itemize}
+\end{infobox}
+
+\section{Memory Safety and Security}
+
+\subsection{Current Safety Mechanisms}
+
+\subsubsection{Header Validation}
+
+\begin{infobox}{Header Validation}
+\begin{itemize}
+  \item Magic number prevents executing invalid data
+  \item Version check prevents ABI mismatches
+  \item Invalid header causes kernel to enter error state (LED blink)
+\end{itemize}
+\end{infobox}
+
+\subsubsection{Syscall Isolation}
+
+\begin{infobox}{Syscall Isolation}
+\begin{itemize}
+  \item Applications cannot directly access hardware
+  \item All hardware operations go through kernel
+  \item Kernel validates pointer ranges for string operations
+\end{itemize}
+\end{infobox}
+
+\subsubsection{Pointer Validation}
+
+The kernel validates application-provided pointers before dereferencing:
+
+\begin{lstlisting}[language=C++]
+inline bool isValidAppPointer(const void* ptr, size_t len) {
+  if (ptr == nullptr) return false;
+  uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+  if (addr < kSramBaseAddr || addr >= kSramEndAddr) return false;
+  if (len > 0 && addr > kSramEndAddr - len) return false;
+  return true;
+}
+\end{lstlisting}
+
+\begin{infobox}{Pointer Validation Scope}
+This validation is applied to syscalls that accept string/buffer pointers (e.g., \code{Serial\_print\_s}).
+\end{infobox}
+
+\subsection{Security Considerations}
+
+\begin{warningbox}{Current Security Limitations}
+\begin{itemize}
+  \item No bounds checking on all buffer pointers
+  \item No validation of pointer ranges for all syscalls
+  \item Syscall IDs not cryptographically signed
+  \item No privilege separation beyond syscall boundary
+\end{itemize}
+\end{warningbox}
+
+\begin{infobox}{Recommended Security Enhancements}
+\begin{itemize}
+  \item Add bounds checking for all buffer operations
+  \item Validate pointer ranges against known safe regions for all syscalls
+  \item Implement syscall rate limiting
+  \item Add application signing/verification
+\end{itemize}
+\end{infobox}
+
+\section{Build Configuration}
+
+\subsection{Compiler Flags}
+
+Application code is compiled with the following flags:
+
+\begin{codebox}
+\begin{lstlisting}[language=bash, numbers=none]
+CFLAGS:
+  -mcpu=cortex-m33          # RP2350 CPU architecture
+  -mthumb                   # Thumb instruction set
+  -mfloat-abi=softfp        # Software floating point
+  -DNO_STDIO                # Disable stdio functions
+  -Os -g0                   # Optimize for size, no debug
+  -fdata-sections           # Enable section garbage collection
+  -ffunction-sections       # Enable function section GC
+  -fno-exceptions           # Disable C++ exceptions
+  -fno-rtti                 # Disable runtime type info
+\end{lstlisting}
+\end{codebox}
+
+\begin{infobox}{Libc Support}
+When libc is enabled, the application can use standard C library functions with custom implementations provided in \code{newlib\_stubs.c}.
+\end{infobox}
+
+\subsection{Linker Configuration}
+
+\begin{codebox}
+\begin{lstlisting}[language=bash, numbers=none]
+LDFLAGS:
+  -nostdlib                 # No standard library
+  -nostartfiles             # Custom startup code
+  -Wl,--gc-sections         # Remove unused sections
+  -T"memmap_app_ram.ld"     # Custom memory map
+\end{lstlisting}
+\end{codebox}
+
+\begin{infobox}{Optional Linker Flags}
+\begin{itemize}
+  \item \code{-lc -lgcc}: Link against libc (requires \code{newlib\_stubs.c})
+\end{itemize}
+\end{infobox}
+
+\section{Debugging and Diagnostics}
+
+\subsection{Syscall Tracing}
+
+Enable debug output in \code{kernel/src/kernel\_syscall\_dispatch.cpp}:
+
+\begin{lstlisting}[language=C++]
+#define DEBUG_SYSCALLS
+\end{lstlisting}
+
+\begin{codebox}
+\textbf{Output Format:}
+\begin{lstlisting}[language=bash, numbers=none]
+[SYSC] 3 (pinMode) args=[13,1,0,0,0,0]
+[SYSC] ret=0
+\end{lstlisting}
+\end{codebox}
+
+\subsection{Common Failure Modes}
+
+\vspace{0.3cm}
+\begin{longtable}{p{3.5cm} p{4.8cm} p{4.7cm}}
+\toprule
+\textbf{Symptom} & \textbf{Likely Cause} & \textbf{Solution} \\
+\midrule
+``Invalid app header'' & Address mismatch & Verify \code{0x20030000} in all locations \\
+\midrule
+``Unknown syscall'' & ID mismatch & Regenerate syscall files \\
+\midrule
+App crashes & Invalid pointer passed & Add bounds checking \\
+\midrule
+Undefined symbols & Missing generated files & Run \code{build.bat} \\
+\midrule
+Upload fails & Wrong board selected & Select Pico 2W in Arduino IDE \\
+\bottomrule
+\end{longtable}
+
+\section{Performance Characteristics}
+
+\subsection{Memory Usage}
+
+\begin{infobox}{Memory Footprint}
+\begin{itemize}
+  \item \textbf{Kernel:} ~50--100 KB flash (varies with Arduino core features)
+  \item \textbf{Application:} Typically 10--50 KB SRAM (code + data)
+  \item \textbf{Available Heap:} ~400 KB (448 KB total - app footprint)
+\end{itemize}
+\end{infobox}
+
+\subsection{Syscall Overhead}
+
+\needspace{15\baselineskip}
+\begin{infobox}{Performance Metrics}
+\begin{itemize}[noitemsep]
+  \item \textbf{Gate lookup:} ~2--5 cycles (cached after first call, ~1 cycle subsequently)
+  \item \textbf{Function call:} ~50--100 CPU cycles
+  \item \textbf{Dispatch:} ~3--5 cycles (direct jump table lookup + type casting)
+  \item \textbf{Type marshalling:} ~5--15 cycles (template-based argument conversion)
+  \item \textbf{Total latency:} ~60--125 cycles ($\approx$0.5--1.0\,$\mu$s @ 120\,MHz)
+\end{itemize}
+\end{infobox}
+
+\vspace{0.3cm}
+\begin{infobox}{Optimizations Applied}
+The following optimizations reduce syscall overhead:
+\begin{itemize}[noitemsep]
+  \item \textbf{Gate pointer caching:} Eliminates repeated header dereferences
+  \item \textbf{Jump table dispatch:} Direct array indexing (predictable branches)
+\end{itemize}
+\end{infobox}
+
+\subsection{Further Optimization Opportunities}
+
+\begin{enumerate}
+  \item Variable argument passing (only pass needed arguments instead of all 30)
+  \item Fast-path inlining for high-frequency syscalls (bypass template machinery)
+  \item Direct dispatch code generation (eliminate template overhead for common cases)
+  \item Register calling convention optimization (ensure optimal register usage)
+\end{enumerate}
+
+\section{Future Enhancements}
+
+\subsection{Planned Features}
+
+\begin{enumerate}
+  \item \textbf{Hot Reload:} Upload apps without reflashing kernel
+  \item \textbf{Multiple App Slots:} Runtime switching between applications
+  \item \textbf{Syscall Versioning:} Automatic ABI compatibility checking
+  \item \textbf{Secure Boot:} Cryptographic verification of applications
+  \item \textbf{Protected Memory:} Hardware-based memory protection
+\end{enumerate}
+
+\subsection{API Expansion}
+
+\begin{itemize}
+  \item WiFi/Network stack syscalls
+  \item File system operations
+  \item Peripheral drivers (SPI, I2C, etc.)
+  \item Interrupt handling
+  \item Power management
+\end{itemize}
+
+\section{Code Style and Standards}
+
+\begin{infobox}{Code Style Standards}
+This project adheres to the \textbf{Google C++ Style Guide}:
+
+\begin{itemize}
+  \item 2-space indentation
+  \item Pointer style: \code{char* ptr} (not \code{char *ptr})
+  \item C++ casts: \code{static\_cast}, \code{reinterpret\_cast}
+  \item Include order: system headers, then project headers
+  \item Function names: camelCase
+  \item Constants: \code{kConstantName}
+\end{itemize}
+
+All generated code follows these conventions automatically.
+\end{infobox}
+
+\section{Supported Platforms}
+
+\subsection{Target Hardware}
+
+\begin{itemize}
+  \item Raspberry Pi Pico 2 (RP2350)
+  \item Raspberry Pi Pico 2 W (RP2350 with WiFi)
+\end{itemize}
+
+\subsection{Development Environment}
+
+\begin{itemize}
+  \item Windows (build scripts)
+  \item Arduino IDE 1.8.x or 2.x
+  \item Python 3.x
+  \item RP2040 board support package (Earle Philhower)
+\end{itemize}
+
+\section{References}
+
+\begin{itemize}
+  \item \href{https://www.raspberrypi.com/documentation/microcontrollers/pico-series.html#pico-2-family}{Raspberry Pi Pico 2 Documentation}
+  \item \href{https://github.com/earlephilhower/arduino-pico}{Arduino RP2040 Core}
+  \item \href{https://google.github.io/styleguide/cppguide.html}{Google C++ Style Guide}
+  \item \href{https://www.freertos.org/Documentation/RTOS_book.html}{FreeRTOS Documentation}
+\end{itemize}
+
+\section{License}
+
+SRAM-Pico2W is licensed under the GNU General Public License v3.0.
+
+\begin{codebox}
+\small
+\vspace{0.2cm}
+\textbf{GNU General Public License v3.0}
+
+\vspace{0.3cm}
+\noindent This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+\vspace{0.2cm}
+\noindent This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+\vspace{0.2cm}
+\noindent You should have received a copy of the GNU General Public License along with this program. If not, see \href{https://www.gnu.org/licenses/}{https://www.gnu.org/licenses/}.
+
+\vspace{0.2cm}
+\noindent The full license text is available at \href{https://www.gnu.org/licenses/gpl-3.0.html}{https://www.gnu.org/licenses/gpl-3.0.html}.
+\vspace{0.2cm}
+\end{codebox}
+
+\end{document}
