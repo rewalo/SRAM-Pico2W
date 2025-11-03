@@ -25,9 +25,6 @@ __pycache__/
 *.pyd
 .Python
 
-# Compiled documentation
-*.pdf
-
 # Arduino build files
 *.cache/
 
