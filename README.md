@@ -1,6 +1,24 @@
 # SRAM-Pico2W
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Documentation](https://img.shields.io/badge/Documentation-PDF-red)](docs/technical_documentation.pdf)
+[![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%20Pico%202W-orange)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
+
 A firmware architecture for Raspberry Pi Pico 2 / Pico 2 W (RP2350) that enables running Arduino-style applications entirely from Static RAM (SRAM) while maintaining a minimal, flash-resident kernel.
+
+---
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Key Features](#key-features)
+- [Adding New Syscalls](#adding-new-syscalls)
+- [Requirements](#requirements)
+- [Documentation](#documentation)
+- [License](#license)
+
+---
 
 ## Quick Start
 
@@ -55,10 +73,12 @@ SRAM-Pico2W/
 
 ## Key Features
 
-- **SRAM-only applications:** Apps run entirely from SRAM, kernel stays in flash
-- **Syscall interface:** Controlled hardware access through kernel services
-- **Rapid development:** Only rebuild app, kernel stays in flash
-- **Memory efficient:** ~400 KB available heap for applications
+| Feature | Description |
+|---------|-------------|
+| **SRAM-only applications** | Apps run entirely from SRAM, kernel stays in flash |
+| **Syscall interface** | Controlled hardware access through kernel services |
+| **Rapid development** | Only rebuild app, kernel stays in flash |
+| **Memory efficient** | ~400 KB available heap for applications |
 
 ## Adding New Syscalls
 
@@ -69,16 +89,25 @@ SRAM-Pico2W/
 
 ## Requirements
 
-- Windows (for build scripts)
-- Python 3.x
-- Arduino IDE with RP2040 board support
-- Raspberry Pi Pico 2 / Pico 2 W
+- **Operating System:** Windows (for build scripts)
+- **Python:** 3.x
+- **Development Environment:** Arduino IDE with RP2040 board support
+- **Hardware:** Raspberry Pi Pico 2 / Pico 2 W
 
 ## Documentation
 
-See `docs/technical_documentation.pdf` for complete technical documentation.
+[![PDF Documentation](https://bytecode77.com/public/fileicons/pdf.png)](docs/technical_documentation.pdf) **[Technical Documentation](docs/technical_documentation.pdf)**
 
-To rebuild documentation:
+For complete technical documentation, see the PDF file above. It covers architecture details, syscall interface, memory layout, and implementation guides.
+
+### Rebuilding Documentation
+
+To rebuild the documentation from the LaTeX source:
+
 ```batch
 scripts\build_docs.bat
 ```
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
