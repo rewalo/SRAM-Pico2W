@@ -58,7 +58,7 @@ def gen_header(
 # Setup paths
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DEF_FILE = os.path.join(ROOT, "config", "syscalls.def")
-APP_GEN  = os.path.join(ROOT, "app", "generated")
+APP_GEN  = os.path.join(ROOT, "app", "src", "generated")
 KER_GEN  = os.path.join(ROOT, "kernel", "src", "generated")
 
 os.makedirs(APP_GEN, exist_ok=True)

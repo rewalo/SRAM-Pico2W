@@ -103,10 +103,10 @@ echo [STEP 3/4] Compiling app...
 if /I "%LIBC%"=="ON" (
   set CFLAGS=-mcpu=cortex-m33 -mthumb -mfloat-abi=softfp -DNO_STDIO -%OPT_LEVEL% -g0 ^
   -fdata-sections -ffunction-sections -fno-exceptions -fno-rtti -fno-common ^
-  -ffast-math -fno-math-errno -fno-unwind-tables -fno-asynchronous-unwind-tables ^
+  -ffast-math -fno-math-errno   -fno-unwind-tables -fno-asynchronous-unwind-tables ^
   -I"%APP%" ^
   -I"%APP%\src" ^
-  -I"%APP%\generated" ^
+  -I"%APP%\src\generated" ^
   -I"%APP%\include" ^
   -I"%NEWLIBINCDIR%" ^
   -isystem "!GCCVERDIR!\include" ^
@@ -119,7 +119,7 @@ if /I "%LIBC%"=="ON" (
   -ffast-math -fno-math-errno -fno-unwind-tables -fno-asynchronous-unwind-tables ^
   -I"%APP%" ^
   -I"%APP%\src" ^
-  -I"%APP%\generated" ^
+  -I"%APP%\src\generated" ^
   -I"%APP%\include" ^
   %CUSTOM_INCLUDES% ^
   -include "%APP%\include\common.h"
@@ -145,7 +145,7 @@ if /I "%VERBOSE%"=="ON" (
   echo   Compiling: app.ino
 )
 "%BIN%\arm-none-eabi-g++.exe" ^
-  -include "%APP%\generated\app_syscalls.h" ^
+  -include "%APP%\src\generated\app_syscalls.h" ^
   -include "%APP%\include\arduino_proxies.h" ^
   -x c++ -c "%APP%\app.ino" -o "%TEMP%\app.o" %CFLAGS% || goto FAIL
 
@@ -153,7 +153,7 @@ if /I "%VERBOSE%"=="ON" (
   echo   Compiling: support files
 )
 "%BIN%\arm-none-eabi-gcc.exe" -c "%APP%\src\app_header.c" -o "%TEMP%\app_header.o" %CFLAGS% || goto FAIL
-"%BIN%\arm-none-eabi-gcc.exe" -c "%APP%\generated\app_sys_raw.c" -o "%TEMP%\app_sys_raw.o" %CFLAGS% || goto FAIL
+"%BIN%\arm-none-eabi-gcc.exe" -c "%APP%\src\generated\app_sys_raw.c" -o "%TEMP%\app_sys_raw.o" %CFLAGS% || goto FAIL
 "%BIN%\arm-none-eabi-g++.exe" -c "%APP%\src\app_export.c" -o "%TEMP%\app_export.o" %CFLAGS% || goto FAIL
 
 if /I "%LIBC%"=="ON" (

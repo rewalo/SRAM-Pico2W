@@ -43,8 +43,8 @@ SRAM-Pico2W/
 ├── app/                             # Application code (SRAM-resident)
 │   ├── app.ino                      # Your Arduino sketch
 │   ├── src/                         # Application source files
+│   │   └── generated/               # Auto-generated syscall wrappers
 │   ├── include/                     # Application headers
-│   ├── generated/                   # Auto-generated syscall wrappers
 │   └── linker/                      # Memory map linker script
 │
 ├── kernel/                          # Kernel code (flash-resident)
