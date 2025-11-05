@@ -305,9 +305,10 @@ handlers = "// Jump table handlers for syscall dispatch (optimization #3)\n"
 handlers += "// Type aliases - must match those in kernel_sys_dispatch.inc.h\n"
 handlers += "#ifndef __HAS_SYSCALL_TYPE_ALIASES\n"
 handlers += "#define __HAS_SYSCALL_TYPE_ALIASES\n"
-handlers += "using HSPI = std::remove_reference_t<decltype(SPI)>;\n"
-handlers += "using HSerial = std::remove_reference_t<decltype(Serial)>;\n"
-handlers += "using HWire = std::remove_reference_t<decltype(Wire)>;\n"
+# Generate type aliases automatically from detected objects (same as dispatch file)
+for obj_name in sorted(detected_objects):
+    type_alias = object_type_aliases[obj_name]
+    handlers += f"using {type_alias} = std::remove_reference_t<decltype({obj_name})>;\n"
 handlers += "#endif\n\n"
 
 jump_table = "// Function pointer type for syscall handlers\n"
