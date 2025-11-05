@@ -191,6 +191,12 @@ if /I "%VERBOSE%"=="ON" (
 )
 "%BIN%\arm-none-eabi-objcopy.exe" -O binary "%BUILD%\app.elf" "%BUILD%\app.bin" || goto FAIL
 
+:: Generate page metadata from ELF
+if /I "%VERBOSE%"=="ON" (
+  echo   Generating: page metadata
+)
+python "%TOOLS%\page_gen.py" "%BUILD%\app.elf" "%BUILD%\app.bin" "%KERNEL%\src\generated" || goto FAIL
+
 for %%F in ("%BUILD%\app.bin") do set BIN_SIZE=%%~zF
 if !BIN_SIZE! GEQ 1024 (
   set /a BIN_SIZE_KB=!BIN_SIZE! / 1024

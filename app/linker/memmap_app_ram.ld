@@ -1,6 +1,7 @@
-/* memmap_app_ram.ld — APP runs entirely from RAM */
+/* memmap_app_ram.ld — APP runs entirely from RAM with code overlay */
 MEMORY {
   RAM (rwx) : ORIGIN = 0x20030000, LENGTH = 0x00070000
+  CODE_OVERLAY (rx) : ORIGIN = 0x20040000, LENGTH = 0x00040000  /* 256KB code overlay window */
 }
 
 SECTIONS {
@@ -10,7 +11,8 @@ SECTIONS {
     . = ALIGN(4);
   } > RAM
 
-  /* Code and read-only data */
+  /* Code and read-only data - goes into overlay window */
+  /* All code pages will load into this fixed region, overlaying each other */
   .text : {
     *(.text*)
     *(.rodata*)
@@ -18,7 +20,7 @@ SECTIONS {
     *(.gnu.linkonce.t.*)
     *(.gnu.linkonce.r.*)
     . = ALIGN(4);
-  } > RAM
+  } > CODE_OVERLAY
 
   /* Initialized data */
   .data : {

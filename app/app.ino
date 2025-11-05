@@ -4,6 +4,25 @@
 #include <stdio.h>
 #include <math.h>
 
+// Forward declarations for cross-page function call tests
+void test_function_chain();
+void test_function_pointers();
+void test_recursion();
+void test_nested_calls();
+void test_large_functions();
+void test1();
+void test2();
+void test3();
+void test4();
+void test5();
+void test6();
+void recursive_function(int depth, int level);
+void nested_function_a();
+void nested_function_b();
+void nested_function_c();
+void large_function_1();
+void large_function_2();
+
 void setup() {
   Serial.println("Hello from SRAM");
   pinMode(LED_BUILTIN, OUTPUT);
@@ -144,6 +163,35 @@ void setup() {
   free(wireBuf);
 
   Serial.println("\n=== All syscall tests complete ===");
+  
+  // Test cross-page function calls
+  Serial.println("\n");
+  Serial.println("=========================================");
+  Serial.println("TESTING CROSS-PAGE FUNCTION CALLS");
+  Serial.println("=========================================");
+  
+  // Test 1: Function chain
+  test_function_chain();
+  delay(100);
+  
+  // Test 2: Function pointers
+  test_function_pointers();
+  delay(100);
+  
+  // Test 3: Recursion
+  test_recursion();
+  delay(100);
+  
+  // Test 4: Nested calls
+  test_nested_calls();
+  delay(100);
+  
+  // Test 5: Large functions
+  test_large_functions();
+  delay(100);
+  
+  Serial.println("\n=== All cross-page function call tests complete ===");
+  Serial.println("If all tests passed, the overlay system is working correctly!");
 }
 
 void loop() {
@@ -163,4 +211,247 @@ void loop() {
 
   digitalWrite(LED_BUILTIN, LOW);
   delay(150);
+}
+
+// Test function chain - calls functions in sequence to test cross-page calls
+void test_function_chain() {
+  Serial.println("\n=== Testing Function Chain (Cross-Page Calls) ===");
+  Serial.println("Calling test1() -> test2() -> test3() -> test4() -> test5() -> test6()");
+  
+  test1();
+}
+
+// Test function pointers - indirect calls across pages
+void test_function_pointers() {
+  Serial.println("\n=== Testing Function Pointers ===");
+  
+  // Function pointer type
+  typedef void (*TestFuncPtr)();
+  
+  // Array of function pointers
+  TestFuncPtr funcs[] = {test1, test2, test3, test4, test5, test6};
+  const char* names[] = {"test1", "test2", "test3", "test4", "test5", "test6"};
+  
+  Serial.println("Calling functions via function pointers:");
+  for (int i = 0; i < 6; i++) {
+    Serial.print("  Calling ");
+    Serial.print(names[i]);
+    Serial.println("() via pointer");
+    funcs[i]();
+    delay(10);  // Small delay to observe behavior
+  }
+}
+
+// Test recursion - may span multiple pages
+void test_recursion() {
+  Serial.println("\n=== Testing Recursion ===");
+  Serial.println("Recursive function (depth 5):");
+  
+  recursive_function(5, 0);
+}
+
+// Test nested function calls
+void test_nested_calls() {
+  Serial.println("\n=== Testing Nested Function Calls ===");
+  
+  Serial.println("Calling nested_function_a() which calls nested_function_b()...");
+  nested_function_a();
+}
+
+// Test large functions that might span pages
+void test_large_functions() {
+  Serial.println("\n=== Testing Large Functions (Potential Page Boundaries) ===");
+  
+  large_function_1();
+  large_function_2();
+}
+
+// Individual test functions - each should be in potentially different pages
+void test1() {
+  Serial.println("  [test1] Executing...");
+  char* buf = reinterpret_cast<char*>(malloc(32));
+  sprintf(buf, "  [test1] Address: 0x%08lX", reinterpret_cast<uintptr_t>(&test1));
+  Serial.println(buf);
+  free(buf);
+  
+  // Call another function to test chain
+  Serial.println("  [test1] Calling test2()...");
+  test2();
+}
+
+void test2() {
+  Serial.println("    [test2] Executing...");
+  char* buf = reinterpret_cast<char*>(malloc(32));
+  sprintf(buf, "    [test2] Address: 0x%08lX", reinterpret_cast<uintptr_t>(&test2));
+  Serial.println(buf);
+  free(buf);
+  
+  // Call another function
+  Serial.println("    [test2] Calling test3()...");
+  test3();
+}
+
+void test3() {
+  Serial.println("      [test3] Executing...");
+  char* buf = reinterpret_cast<char*>(malloc(32));
+  sprintf(buf, "      [test3] Address: 0x%08lX", reinterpret_cast<uintptr_t>(&test3));
+  Serial.println(buf);
+  free(buf);
+  
+  // Call another function
+  Serial.println("      [test3] Calling test4()...");
+  test4();
+}
+
+void test4() {
+  Serial.println("        [test4] Executing...");
+  char* buf = reinterpret_cast<char*>(malloc(32));
+  sprintf(buf, "        [test4] Address: 0x%08lX", reinterpret_cast<uintptr_t>(&test4));
+  Serial.println(buf);
+  free(buf);
+  
+  // Call another function
+  Serial.println("        [test4] Calling test5()...");
+  test5();
+}
+
+void test5() {
+  Serial.println("          [test5] Executing...");
+  char* buf = reinterpret_cast<char*>(malloc(32));
+  sprintf(buf, "          [test5] Address: 0x%08lX", reinterpret_cast<uintptr_t>(&test5));
+  Serial.println(buf);
+  free(buf);
+  
+  // Call another function
+  Serial.println("          [test5] Calling test6()...");
+  test6();
+}
+
+void test6() {
+  Serial.println("            [test6] Executing...");
+  char* buf = reinterpret_cast<char*>(malloc(32));
+  sprintf(buf, "            [test6] Address: 0x%08lX", reinterpret_cast<uintptr_t>(&test6));
+  Serial.println(buf);
+  free(buf);
+  Serial.println("            [test6] Reached end of chain!");
+}
+
+// Recursive function to test if recursion works across pages
+void recursive_function(int depth, int level) {
+  if (depth <= 0) {
+    char* buf = reinterpret_cast<char*>(malloc(48));
+    sprintf(buf, "  Recursion base case reached at level %d", level);
+    Serial.println(buf);
+    free(buf);
+    return;
+  }
+  
+  char* buf = reinterpret_cast<char*>(malloc(48));
+  sprintf(buf, "  Recursion level %d, depth %d", level, depth);
+  Serial.println(buf);
+  free(buf);
+  
+  // Add some computation to make function larger
+  int sum = 0;
+  for (int i = 0; i < 10; i++) {
+    sum += i;
+  }
+  
+  // Recursive call
+  recursive_function(depth - 1, level + 1);
+  
+  // Post-recursion work
+  char* buf2 = reinterpret_cast<char*>(malloc(48));
+  sprintf(buf2, "  Returning from level %d (sum=%d)", level, sum);
+  Serial.println(buf2);
+  free(buf2);
+}
+
+// Nested function calls
+void nested_function_a() {
+  Serial.println("  [nested_a] Starting...");
+  char* buf = reinterpret_cast<char*>(malloc(32));
+  sprintf(buf, "  [nested_a] Address: 0x%08lX", reinterpret_cast<uintptr_t>(&nested_function_a));
+  Serial.println(buf);
+  free(buf);
+  
+  Serial.println("  [nested_a] Calling nested_function_b()...");
+  nested_function_b();
+  
+  Serial.println("  [nested_a] Returned from nested_function_b()");
+}
+
+void nested_function_b() {
+  Serial.println("    [nested_b] Starting...");
+  char* buf = reinterpret_cast<char*>(malloc(32));
+  sprintf(buf, "    [nested_b] Address: 0x%08lX", reinterpret_cast<uintptr_t>(&nested_function_b));
+  Serial.println(buf);
+  free(buf);
+  
+  Serial.println("    [nested_b] Calling nested_function_c()...");
+  nested_function_c();
+  
+  Serial.println("    [nested_b] Returned from nested_function_c()");
+}
+
+void nested_function_c() {
+  Serial.println("      [nested_c] Starting...");
+  char* buf = reinterpret_cast<char*>(malloc(32));
+  sprintf(buf, "      [nested_c] Address: 0x%08lX", reinterpret_cast<uintptr_t>(&nested_function_c));
+  Serial.println(buf);
+  free(buf);
+  
+  Serial.println("      [nested_c] Deepest level reached!");
+}
+
+// Large functions that might span page boundaries
+void large_function_1() {
+  Serial.println("  [large1] Starting large function...");
+  
+  // Add lots of local variables and operations to make function large
+  int a = 1, b = 2, c = 3, d = 4, e = 5;
+  int f = 6, g = 7, h = 8, i = 9, j = 10;
+  
+  // Multiple operations
+  for (int k = 0; k < 20; k++) {
+    a += k;
+    b *= 2;
+    c = a + b;
+    d = c - a;
+    e = d * b;
+  }
+  
+  char* buf = reinterpret_cast<char*>(malloc(64));
+  sprintf(buf, "  [large1] Computed: a=%d, b=%d, c=%d, d=%d, e=%d", a, b, c, d, e);
+  Serial.println(buf);
+  free(buf);
+  
+  Serial.println("  [large1] Calling large_function_2()...");
+  large_function_2();
+  
+  Serial.println("  [large1] Finished");
+}
+
+void large_function_2() {
+  Serial.println("    [large2] Starting large function...");
+  
+  // More local variables
+  float x = 1.0f, y = 2.0f, z = 3.0f;
+  double sum = 0.0;
+  
+  // More computations
+  for (int i = 0; i < 30; i++) {
+    x += 0.1f;
+    y *= 1.1f;
+    z = x + y;
+    sum += static_cast<double>(z);
+  }
+  
+  char* buf = reinterpret_cast<char*>(malloc(64));
+  sprintf(buf, "    [large2] Final: x=%.2f, y=%.2f, z=%.2f, sum=%.2f", 
+          x, y, z, sum);
+  Serial.println(buf);
+  free(buf);
+  
+  Serial.println("    [large2] Finished");
 }

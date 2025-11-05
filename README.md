@@ -4,7 +4,7 @@
 [![Documentation](https://img.shields.io/badge/Documentation-PDF-red)](docs/technical_documentation.pdf)
 [![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%20Pico%202W-orange)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 
-A firmware architecture for Raspberry Pi Pico 2 / Pico 2 W (RP2350) that enables running Arduino-style applications entirely from Static RAM (SRAM) while maintaining a minimal, flash-resident kernel.
+A firmware architecture for Raspberry Pi Pico 2 / Pico 2 W (RP2350) that enables running Arduino-style applications entirely from Static RAM (SRAM) while maintaining a minimal, flash-resident kernel. The system uses a code overlay approach to support applications of unlimited size through demand-loading of code pages.
 
 ---
 
@@ -58,6 +58,7 @@ SRAM-Pico2W/
 │
 ├── tools/                           # Build tools and utilities
 │   ├── syscall_gen.py               # Syscall generator
+│   ├── page_gen.py                  # Page map generator for overlay system
 │   └── arduino-cli.exe              # Arduino CLI tool
 │
 ├── scripts/                         # Build scripts
@@ -76,9 +77,10 @@ SRAM-Pico2W/
 | Feature | Description |
 |---------|-------------|
 | **SRAM-only applications** | Apps run entirely from SRAM, kernel stays in flash |
+| **Code overlay system** | Unlimited application size via demand-loading code pages |
 | **Syscall interface** | Controlled hardware access through kernel services |
 | **Rapid development** | Only rebuild app, kernel stays in flash |
-| **Memory efficient** | ~400 KB available heap for applications |
+| **Memory efficient** | ~400 KB available heap, 256 KB code overlay window |
 
 ## Adding New Syscalls
 

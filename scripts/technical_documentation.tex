@@ -245,8 +245,9 @@ This script performs the following operations:
 \begin{enumerate}
   \item Generates syscall wrapper code from \code{syscalls.def}
   \item Compiles the application code (\code{app/app.ino}) and support files
-  \item Links the application with a custom SRAM memory map
+  \item Links the application with a custom SRAM memory map (includes code overlay region)
   \item Converts the ELF binary to raw binary format
+  \item Generates page map metadata (\code{page\_gen.py}) for code paging system
   \item Embeds the binary into \code{kernel/src/generated/rawData.h}
 \end{enumerate}
 
@@ -343,20 +344,29 @@ SRAM is organized starting at address \code{0x20030000}:
 0x20030000: +-----------------+
             | .app_hdr        | Application header + syscall gate
             +-----------------+
-            | .text           | Application code
+            | .data           | Initialized variables (fixed address)
             +-----------------+
-            | .data           | Initialized variables
-            +-----------------+
-            | .bss            | Zero-initialized data
+            | .bss            | Zero-initialized data (fixed address)
             +-----------------+
             | __heap_start__  | Dynamic allocation (malloc/free)
+            | ...             |
+            | ...             |
+            +-----------------+
+0x20040000: | CODE OVERLAY    | Code execution window (256 KB)
+            | WINDOW          | All code pages load here
+            |                 | Pages overlay each other
+            +-----------------+
             | ...             |
             | __heap_end__    | End of SRAM (0x200A0000)
             +-----------------+
 \end{verbatim}
 
 \begin{infobox}{Memory Statistics}
-\textbf{Total SRAM Size:} 448 KB (0x00070000 bytes)
+\begin{itemize}
+  \item \textbf{Total SRAM Size:} 448 KB (0x00070000 bytes)
+  \item \textbf{Code Overlay Window:} 256 KB at \code{0x20040000}
+  \item \textbf{Header/Data Region:} Fixed addresses starting at \code{0x20030000}
+\end{itemize}
 \end{infobox}
 
 \subsection{Runtime Execution Flow}
@@ -366,11 +376,15 @@ SRAM is organized starting at address \code{0x20030000}:
   \item \textbf{Kernel setup():}
     \begin{itemize}
       \item Initializes serial communication (115200 baud)
-      \item Copies embedded application binary from flash (\code{rawData[]}) to SRAM at \code{0x20030000}
+      \item Initializes code overlay system (\code{code\_cache\_init()})
+      \item Copies header and data sections from flash (\code{rawData[]}) to fixed SRAM addresses
       \begin{itemize}
-        \item Binary copy includes \code{.text} (code), \code{.data} (initialized variables), and \code{.app\_hdr} (header)
+        \item Header section (\code{.app\_hdr}) copied to \code{0x20030000}
+        \item Data section (\code{.data}) copied to fixed addresses after header
+        \item Code pages are \textbf{not} copied yet - loaded on demand via overlay
       \end{itemize}
       \item Zeros the BSS section (uninitialized static variables) using boundaries from app header
+      \item Loads critical code pages (containing \code{app\_setup()} and \code{app\_loop()}) into overlay window
       \item Validates application header (magic number \code{0x41505041} = ``APPA'')
       \item Validates version number (\code{0x00020000})
       \item Patches syscall gate pointer into application header
@@ -379,7 +393,9 @@ SRAM is organized starting at address \code{0x20030000}:
     \end{itemize}
   \item \textbf{Application Execution:}
     \begin{itemize}
-      \item Application code executes entirely from SRAM
+      \item Application code executes from SRAM overlay window (\code{0x20040000})
+      \item Code pages are loaded on demand when functions are called
+      \item Overlay system manages page loading and eviction transparently
       \item Hardware access via syscall gate $\rightarrow$ kernel dispatcher
       \item Kernel services execute from flash-resident code
     \end{itemize}
@@ -457,9 +473,12 @@ The syscall mechanism works as follows:
 +------+-----------+
        |
        +--> Compiles app.ino + support files
-       +--> Links with custom linker script (SRAM)
+       +--> Links with custom linker script (SRAM + overlay)
        +--> Generates app.elf
        +--> Converts to app.bin
+       +--> Generates page map (page_gen.py)
+       |     --> kernel/src/generated/app_page_map.h
+       |     --> kernel/src/generated/app_page_map.c
        +--> Embeds app.bin -> kernel/src/generated/rawData.h
        |
        v
@@ -670,6 +689,112 @@ static inline T cast_arg_uintptr(uintptr_t v) {
 \end{itemize}
 \end{infobox}
 
+\section{Code Overlay and Paging System}
+
+\subsection{Overview}
+
+The code overlay system enables applications of unlimited size to run within SRAM constraints. Instead of loading the entire application binary at once, the system uses a demand-loading approach where code pages are loaded into a fixed overlay window as they are needed.
+
+\subsection{Architecture}
+
+\subsubsection{Overlay Window}
+
+All application code executes from a fixed overlay window at address \code{0x20040000}:
+
+\begin{itemize}
+  \item \textbf{Overlay Base:} \code{0x20040000}
+  \item \textbf{Overlay Size:} 256 KB
+  \item \textbf{Page Size:} 4 KB (4096 bytes)
+  \item \textbf{All code pages load into this fixed window}, overlaying previous pages
+\end{itemize}
+
+\subsubsection{Memory Regions}
+
+The system divides SRAM into two distinct regions:
+
+\begin{enumerate}
+  \item \textbf{Fixed Address Region} (\code{0x20030000+}):
+  \begin{itemize}
+    \item Header section (\code{.app\_hdr}) - must be at \code{0x20030000}
+    \item Data section (\code{.data}) - initialized variables at fixed addresses
+    \item BSS section (\code{.bss}) - zero-initialized data
+  \end{itemize}
+  
+  \item \textbf{Overlay Window} (\code{0x20040000+}):
+  \begin{itemize}
+    \item Code section (\code{.text}) - loaded on demand
+    \item Read-only data (\code{.rodata}) - loaded with code pages
+    \item Pages overlay each other - only one set active at a time
+  \end{itemize}
+\end{enumerate}
+
+\subsection{How It Works}
+
+\subsubsection{Page Generation}
+
+At build time, \code{page\_gen.py} analyzes the application binary and generates:
+
+\begin{itemize}
+  \item Page metadata structure (\code{AppPageInfo}) mapping page IDs to flash offsets
+  \item Page map array identifying which pages contain header, data, or code sections
+  \item Section identification for proper address assignment
+\end{itemize}
+
+\subsubsection{Loading Strategy}
+
+\begin{enumerate}
+  \item \textbf{Initial Load:} Header and data sections are copied immediately to fixed addresses (they're small and must be at specific locations)
+  
+  \item \textbf{Critical Pages:} Code pages containing \code{app\_setup()} and \code{app\_loop()} are loaded before application execution begins
+  
+  \item \textbf{On-Demand Loading:} When a function is called:
+  \begin{itemize}
+    \item The overlay system finds which page contains the function address
+    \item If the page is not loaded, it copies it from flash to the overlay window
+    \item Previous code pages in the overlay are automatically overwritten
+    \item The function executes at its expected overlay address
+  \end{itemize}
+\end{enumerate}
+
+\subsubsection{Page Tracking}
+
+The code cache manager (\code{code\_cache.cpp}) tracks:
+
+\begin{itemize}
+  \item Which pages are currently loaded in the overlay
+  \item Page access counts for LRU eviction (though overlay simplifies this)
+  \item Page-to-address mapping for function pointer resolution
+\end{itemize}
+
+\subsection{Benefits}
+
+\begin{itemize}
+  \item \textbf{Unlimited Application Size:} Applications can be larger than the overlay window since pages are loaded on demand
+  \item \textbf{Simple and Stable:} Pure memory copying, no code relocation or patching required
+  \item \textbf{Transparent:} No changes required to application code - works with any Arduino-style code
+  \item \textbf{Efficient:} Only loads code pages that are actually executed
+  \item \textbf{Fast Function Calls:} Code is always at the expected overlay address, enabling direct function calls
+\end{itemize}
+
+\subsection{Limitations}
+
+\begin{itemize}
+  \item Only one set of code pages can be active in the overlay at a time
+  \item Functions that call each other across page boundaries require page loading on demand
+  \item Works best for sequential code execution patterns
+  \item Recursive functions that span multiple pages may cause page thrashing
+\end{itemize}
+
+\begin{infobox}{Overlay System Design}
+The overlay approach is simpler than position-independent code (PIC) or runtime relocation because:
+\begin{itemize}
+  \item Code is compiled for the overlay address (\code{0x20040000})
+  \item All code pages load at the same base address
+  \item No address patching or relocation needed
+  \item Function pointers work correctly since addresses are stable
+\end{itemize}
+\end{infobox}
+
 \section{Application Binary Format}
 
 \subsection{Header Structure}
@@ -707,15 +832,19 @@ typedef struct AppHeader {
 
 \begin{verbatim}
 0x20030000: +-----------------+
-            | .app_hdr        | Header + syscall gate
+            | .app_hdr        | Header + syscall gate (fixed)
             +-----------------+
-            | .text           | Application code
+            | .data           | Initialized variables (fixed)
             +-----------------+
-            | .data           | Initialized variables
-            +-----------------+
-            | .bss            | Zero-initialized data
+            | .bss            | Zero-initialized data (fixed)
             +-----------------+
             | __heap_start__  | Dynamic allocation
+            | ...             |
+            +-----------------+
+0x20040000: | CODE OVERLAY    | Code execution window (256 KB)
+            | WINDOW          | All code pages load here
+            |                 | Pages overlay each other
+            +-----------------+
             | ...             |
             | __heap_end__    | End of SRAM
             +-----------------+
@@ -935,8 +1064,10 @@ Upload fails & Wrong board selected & Select Pico 2W in Arduino IDE \\
 \begin{infobox}{Memory Footprint}
 \begin{itemize}
   \item \textbf{Kernel:} ~50--100 KB flash (varies with Arduino core features)
-  \item \textbf{Application:} Typically 10--50 KB SRAM (code + data)
-  \item \textbf{Available Heap:} ~400 KB (448 KB total - app footprint)
+  \item \textbf{Application Header/Data:} Typically 10--50 KB SRAM (fixed addresses)
+  \item \textbf{Code Overlay Window:} 256 KB (for code execution, pages load on demand)
+  \item \textbf{Available Heap:} ~400 KB (remaining SRAM after header/data)
+  \item \textbf{Application Size:} Unlimited (code pages loaded from flash as needed)
 \end{itemize}
 \end{infobox}
 
@@ -981,6 +1112,8 @@ The following optimizations reduce syscall overhead:
   \item \textbf{Syscall Versioning:} Automatic ABI compatibility checking
   \item \textbf{Secure Boot:} Cryptographic verification of applications
   \item \textbf{Protected Memory:} Hardware-based memory protection
+  \item \textbf{Page Preloading:} Intelligent prefetching of likely-needed pages
+  \item \textbf{Page Access Statistics:} Profiling tools for optimization
 \end{enumerate}
 
 \subsection{API Expansion}

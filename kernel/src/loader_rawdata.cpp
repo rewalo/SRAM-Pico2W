@@ -1,9 +1,14 @@
 #include <Arduino.h>
+#include <limits.h>
 
 #include "generated/raw_data.h"
+#include "generated/app_page_map.h"
+#include "code_cache.h"
 
 #define kAppDst (reinterpret_cast<uint8_t*>(0x20030000))
 #define kSramSize (0x00070000u)
+
+// app_page_map is defined in generated/app_page_map.h
 
 // ARM interrupt control - disable/enable around memory ops for safety
 static inline void cpsid_i() { __asm__("cpsid i"); }
@@ -12,71 +17,61 @@ static inline void cpsie_i() { __asm__("cpsie i"); }
 static inline void dsb() { __asm__("dsb 0xF"); }
 static inline void isb() { __asm__("isb 0xF"); }
 
-// Copies compiled app binary from flash to SRAM at fixed address
+// Copies compiled app binary from flash to SRAM using paging system
 extern "C" void load_app_image_to_sram(void) {
   if (raw_data_len == 0 || raw_data == nullptr) {
     Serial.println("[Kernel] ERROR: Invalid app image");
     return;
   }
-  if (raw_data_len > kSramSize) {
-    Serial.print("[Kernel] ERROR: App too large (");
-    Serial.print(raw_data_len);
-    Serial.print(" > ");
-    Serial.print(kSramSize);
-    Serial.println(" bytes)");
-    return;
+
+  // Initialize code overlay system
+  code_cache_init();
+
+  // Copy header and data sections to fixed locations immediately
+  // These must be at fixed addresses (header at 0x20030000, data after header)
+  // Code pages will be loaded into overlay window on demand
+  for (uint32_t i = 0; i < APP_PAGE_COUNT; i++) {
+    const AppPageInfo* page = &app_page_map[i];
+    
+    // Load header and data sections immediately (they're small and must be at fixed addresses)
+    // Code pages (section_id == 1) are loaded into overlay on demand
+    if (page->section_id == 0 || page->section_id == 2) {  // Header or data
+      const uint8_t* src = raw_data + page->flash_offset;
+      uint8_t* dst = reinterpret_cast<uint8_t*>(page->sram_addr);
+      size_t len = page->size;
+      
+      if (page->flash_offset + len > raw_data_len) {
+        len = raw_data_len - page->flash_offset;
+      }
+      
+      cpsid_i();
+      // Copy with word alignment for speed
+      while (((reinterpret_cast<uintptr_t>(dst) & 3u) != 0) && len != 0) {
+        *dst++ = *src++;
+        --len;
+      }
+      
+      const uint32_t* s32 = reinterpret_cast<const uint32_t*>(src);
+      uint32_t* d32 = reinterpret_cast<uint32_t*>(dst);
+      while (len >= 4) {
+        *d32++ = *s32++;
+        len -= 4;
+      }
+      
+      src = reinterpret_cast<const uint8_t*>(s32);
+      dst = reinterpret_cast<uint8_t*>(d32);
+      while (len-- != 0) {
+        *dst++ = *src++;
+      }
+      cpsie_i();
+      dsb();
+      isb();
+    }
   }
 
-  // Zero app SRAM region before copying binary to ensure clean state
-  size_t zero_size = raw_data_len;
-  if (zero_size > kSramSize) {
-    zero_size = kSramSize;
-  }
-  
-  uint32_t* zero_ptr = reinterpret_cast<uint32_t*>(kAppDst);
-  size_t zero_words = (zero_size + 3) / 4;
-  cpsid_i();
-  for (size_t i = 0; i < zero_words; i++) {
-    zero_ptr[i] = 0;
-  }
-  cpsie_i();
-  dsb();
-  isb();
-
-  const uint8_t* src = raw_data;
-  uint8_t* dst = kAppDst;
-  size_t len = raw_data_len;
-
-  // Align destination to 4 bytes for faster word copies
-  while (((reinterpret_cast<uintptr_t>(dst) & 3u) != 0) && len != 0) {
-    cpsid_i();
-    *dst++ = *src++;
-    cpsie_i();
-    --len;
-  }
-
-  // Fast 32-bit word copies
-  const uint32_t* s32 = reinterpret_cast<const uint32_t*>(src);
-  uint32_t* d32 = reinterpret_cast<uint32_t*>(dst);
-  while (len >= 4) {
-    cpsid_i();
-    *d32++ = *s32++;
-    cpsie_i();
-    len -= 4;
-  }
-
-  // Copy remaining bytes
-  src = reinterpret_cast<const uint8_t*>(s32);
-  dst = reinterpret_cast<uint8_t*>(d32);
-  while (len-- != 0) {
-    cpsid_i();
-    *dst++ = *src++;
-    cpsie_i();
-  }
-
-  // Ensure all writes are visible before jumping to SRAM code
-  dsb();
-  isb();
+  Serial.print("[Kernel] Loaded header/data sections (");
+  Serial.print(APP_PAGE_COUNT);
+  Serial.println(" total pages, code overlay ready)");
 }
 
 // Helper to zero a memory region
@@ -106,6 +101,7 @@ static void zero_region(uint8_t* start, uint8_t* end, const char* name) {
 
 // Zeros BSS section and ensures .data section is properly initialized
 // Must be called after load_app_image_to_sram() and before jumping to app code
+// Also loads any code pages needed for setup/loop functions
 extern "C" void zero_app_bss(void) {
   // Read app header to get section boundaries
   struct AppHeader {
@@ -165,5 +161,20 @@ extern "C" void zero_app_bss(void) {
     }
     
     Serial.println("[Kernel] BSS zeroed");
+  }
+  
+  // Load code pages containing setup/loop functions
+  // These are needed immediately when app starts
+  if (hdr->app_setup != nullptr) {
+    uint32_t setup_page = code_cache_find_page(reinterpret_cast<uint32_t>(hdr->app_setup));
+    if (setup_page != UINT32_MAX) {
+      code_cache_load_page(setup_page, true);
+    }
+  }
+  if (hdr->app_loop != nullptr) {
+    uint32_t loop_page = code_cache_find_page(reinterpret_cast<uint32_t>(hdr->app_loop));
+    if (loop_page != UINT32_MAX) {
+      code_cache_load_page(loop_page, true);
+    }
   }
 }
