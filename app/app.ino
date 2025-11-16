@@ -23,8 +23,31 @@ void nested_function_c();
 void large_function_1();
 void large_function_2();
 
+String a1 = "hello world";
+String sub = a1.substring(0, 3);
+
+String a2 = "HALLO WORLD";
+String lower = a2.toLower();
+
 void setup() {
   Serial.println("Hello from SRAM");
+  Serial.println(sub);
+  Serial.println(lower);
+  randomSeed(analogRead(0));  // Seed from analog noise
+  long r = random(10, 100);   // Random between 10-100
+  long mapped = map(r, 10, 100, 0, 255);  // Map to 0-255
+
+  char c = 'A';
+  if (isUpperCase(c)) {
+    c = toLowerCase(c);  // 'a'
+  }
+  Serial.println("=== Math and Character Tests ===");
+  Serial.print("Random (10-100): ");
+  Serial.println(r);
+  Serial.print("Mapped (0-255): ");
+  Serial.println(mapped);
+  Serial.print("Character: ");
+  Serial.println(c);
   pinMode(LED_BUILTIN, OUTPUT);
 
   // Test malloc/free

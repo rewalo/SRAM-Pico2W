@@ -29,14 +29,19 @@ typedef struct AppHeader {
   void* bss_start;           // Start of BSS section (for zeroing)
   void* bss_end;             // End of BSS section (for zeroing)
   uint32_t* bss_marker;      // Pointer to BSS verification marker
+  void (**init_array_start)(void);  // Start of .init_array (global constructors)
+  void (**init_array_end)(void);    // End of .init_array
+  void (**fini_array_start)(void);  // Start of .fini_array (global destructors)
+  void (**fini_array_end)(void);     // End of .fini_array
 } AppHeader;
 
 #define kAppMagic (0x41505041u)  // "APPA"
-#define kAppVersion (0x00020000u)
+#define kAppVersion (0x00020001u)  // Bumped for init_array support
 #define kAppBaseAddr (0x20030000u)
 
 extern "C" void load_app_image_to_sram(void);
 extern "C" void zero_app_bss(void);
+extern "C" void call_app_constructors(void);
 extern "C" uintptr_t KernelSyscallDispatch(uint16_t id, uintptr_t a0,
                                             uintptr_t a1, uintptr_t a2,
                                             uintptr_t a3, uintptr_t a4,
@@ -93,6 +98,11 @@ void setup() {
 
   // Patch syscall gate pointer so app can call kernel functions
   hdr->syscall_gate = &KernelSyscallDispatch;
+
+  // Call all global constructors before running setup
+  // This initializes all global C++ objects (like String objects)
+  call_app_constructors();
+  Serial.println("[Kernel] Global constructors called");
 
   // Run app setup once
   if (hdr->app_setup != nullptr) {

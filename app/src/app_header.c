@@ -29,6 +29,13 @@ extern char __data_end__[];
 extern char __bss_start__[];
 extern char __bss_end__[];
 
+// Global constructor/destructor arrays (defined by linker)
+// Standard declaration: arrays of function pointers
+extern void (*__init_array_start__[])(void);
+extern void (*__init_array_end__[])(void);
+extern void (*__fini_array_start__[])(void);
+extern void (*__fini_array_end__[])(void);
+
 // BSS verification marker - this MUST be in BSS and MUST be zero after zeroing
 // Kernel can check this to verify BSS zeroing worked
 static uint32_t __bss_verification_marker;
@@ -46,11 +53,17 @@ __attribute__((section(".app_hdr"), used)) struct {
   void* bss_start;           // Start of BSS section (for zeroing)
   void* bss_end;             // End of BSS section (for zeroing)
   uint32_t* bss_marker;       // Pointer to verification marker
+  void (**init_array_start)(void);  // Start of .init_array (global constructors)
+  void (**init_array_end)(void);    // End of .init_array
+  void (**fini_array_start)(void);  // Start of .fini_array (global destructors)
+  void (**fini_array_end)(void);     // End of .fini_array
 } __app_header = {
-  0x41505041u, 0x00020000u, app_setup, app_loop, 0,
+  0x41505041u, 0x00020001u, app_setup, app_loop, 0,  // Version bumped for init_array support
   __data_start__, __data_end__,
   __bss_start__, __bss_end__,
-  &__bss_verification_marker
+  &__bss_verification_marker,
+  __init_array_start__, __init_array_end__,
+  __fini_array_start__, __fini_array_end__
 };
 
 // Returns syscall gate pointer - app's syscall stubs call this

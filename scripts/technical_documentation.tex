@@ -348,6 +348,10 @@ SRAM is organized starting at address \code{0x20030000}:
             +-----------------+
             | .bss            | Zero-initialized data (fixed address)
             +-----------------+
+            | .init_array     | Global constructors (fixed address)
+            +-----------------+
+            | .fini_array     | Global destructors (fixed address)
+            +-----------------+
             | __heap_start__  | Dynamic allocation (malloc/free)
             | ...             |
             | ...             |
@@ -384,9 +388,10 @@ SRAM is organized starting at address \code{0x20030000}:
         \item Code pages are \textbf{not} copied yet - loaded on demand via overlay
       \end{itemize}
       \item Zeros the BSS section (uninitialized static variables) using boundaries from app header
+      \item Calls all global constructors from \code{.init\_array} to initialize C++ global objects
       \item Loads critical code pages (containing \code{app\_setup()} and \code{app\_loop()}) into overlay window
       \item Validates application header (magic number \code{0x41505041} = ``APPA'')
-      \item Validates version number (\code{0x00020000})
+      \item Validates version number (\code{0x00020001})
       \item Patches syscall gate pointer into application header
       \item Calls \code{app\_setup()} once in kernel context
       \item Launches FreeRTOS task for \code{app\_loop()}
@@ -514,7 +519,7 @@ All components must agree on the SRAM base address \code{0x20030000}:
 The kernel performs the following validation checks:
 \begin{itemize}
   \item Header magic validation: \code{0x41505041} = ``APPA''
-  \item Version validation: \code{0x00020000}
+  \item Version validation: \code{0x00020001}
   \item Mismatched addresses cause ``Invalid app header'' error
 \end{itemize}
 \end{infobox}
@@ -718,6 +723,7 @@ The system divides SRAM into two distinct regions:
     \item Header section (\code{.app\_hdr}) - must be at \code{0x20030000}
     \item Data section (\code{.data}) - initialized variables at fixed addresses
     \item BSS section (\code{.bss}) - zero-initialized data
+    \item Constructor arrays (\code{.init\_array}, \code{.fini\_array}) - C++ global object initialization
   \end{itemize}
   
   \item \textbf{Overlay Window} (\code{0x20040000+}):
@@ -804,7 +810,7 @@ The application header is located at the start of the SRAM image in the \verb|.a
 \begin{lstlisting}[language=C]
 typedef struct AppHeader {
   uint32_t magic;          // 'APPA' = 0x41505041
-  uint32_t version;        // 0x00020000 (ABI version)
+  uint32_t version;        // 0x00020001 (ABI version)
   void (*app_setup)(void);
   void (*app_loop)(void);
   SyscallGate syscall_gate; // Patched by kernel at runtime
@@ -813,17 +819,22 @@ typedef struct AppHeader {
   void* bss_start;         // Start of BSS section (for zeroing)
   void* bss_end;           // End of BSS section (for zeroing)
   uint32_t* bss_marker;    // Pointer to BSS verification marker
+  void (**init_array_start)(void);  // Start of .init_array (constructors)
+  void (**init_array_end)(void);    // End of .init_array
+  void (**fini_array_start)(void);  // Start of .fini_array (destructors)
+  void (**fini_array_end)(void);     // End of .fini_array
 } AppHeader;
 \end{lstlisting}
 
 \begin{infobox}{Header Layout}
 \begin{itemize}
   \item \textbf{Magic number:} Authentication check (must be \code{0x41505041})
-  \item \textbf{Version:} ABI compatibility validation (must be \code{0x00020000})
+  \item \textbf{Version:} ABI compatibility validation (must be \code{0x00020001})
   \item \textbf{Function pointers:} Entry points for kernel invocation (\code{app\_setup}, \code{app\_loop})
   \item \textbf{Syscall gate:} Runtime-patched function pointer to kernel dispatcher
   \item \textbf{Section boundaries:} Pointers to \code{.data} and \code{.bss} section boundaries for initialization
   \item \textbf{BSS marker:} Pointer to verification marker used to confirm BSS zeroing
+  \item \textbf{Constructor arrays:} Pointers to \code{.init\_array} and \code{.fini\_array} for C++ global object initialization
 \end{itemize}
 \end{infobox}
 
@@ -837,6 +848,10 @@ typedef struct AppHeader {
             | .data           | Initialized variables (fixed)
             +-----------------+
             | .bss            | Zero-initialized data (fixed)
+            +-----------------+
+            | .init_array     | Global constructors (fixed)
+            +-----------------+
+            | .fini_array     | Global destructors (fixed)
             +-----------------+
             | __heap_start__  | Dynamic allocation
             | ...             |
@@ -886,8 +901,20 @@ Serial.println("Hello");   // Calls syscall
   \item Natural API usage (no change to application code style)
   \item Zero runtime overhead (inline functions)
   \item Type safety maintained
+  \item Supports \code{int}, \code{long}, \code{char}, \code{String}, and \code{const char*} types
 \end{itemize}
 \end{infobox}
+
+\subsection{Global Constructor Support}
+
+The system supports C++ global object initialization through \code{.init\_array}:
+
+\begin{itemize}
+  \item Linker script includes \code{.init\_array} and \code{.fini\_array} sections in SRAM
+  \item Kernel calls all constructors in \code{.init\_array} before \code{app\_setup()}
+  \item Enables global \code{String} objects and other C++ globals to initialize correctly
+  \item Constructor order is preserved (priority-based ordering supported)
+\end{itemize}
 
 \section{FreeRTOS Integration}
 
@@ -924,7 +951,7 @@ static void appTask(void*) {
 \begin{infobox}{Header Validation}
 \begin{itemize}
   \item Magic number prevents executing invalid data
-  \item Version check prevents ABI mismatches
+  \item Version check prevents ABI mismatches (current version: \code{0x00020001})
   \item Invalid header causes kernel to enter error state (LED blink)
 \end{itemize}
 \end{infobox}
@@ -1000,6 +1027,8 @@ CFLAGS:
 
 \begin{infobox}{Libc Support}
 When libc is enabled, the application can use standard C library functions with custom implementations provided in \code{newlib\_stubs.c}.
+
+\textbf{Arduino Libraries:} WMath and WCharacter libraries are provided that use libc functions (\code{random()}, \code{map()}, \code{isAlpha()}, \code{toLowerCase()}, etc.). These are automatically included via \code{arduino\_proxies.h} and require no syscalls.
 \end{infobox}
 
 \subsection{Linker Configuration}

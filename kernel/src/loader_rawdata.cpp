@@ -115,6 +115,10 @@ extern "C" void zero_app_bss(void) {
     void* bss_start;
     void* bss_end;
     uint32_t* bss_marker;
+    void (**init_array_start)(void);
+    void (**init_array_end)(void);
+    void (**fini_array_start)(void);
+    void (**fini_array_end)(void);
   };
   
   AppHeader* hdr = reinterpret_cast<AppHeader*>(kAppDst);
@@ -175,6 +179,63 @@ extern "C" void zero_app_bss(void) {
     uint32_t loop_page = code_cache_find_page(reinterpret_cast<uint32_t>(hdr->app_loop));
     if (loop_page != UINT32_MAX) {
       code_cache_load_page(loop_page, true);
+    }
+  }
+}
+
+// Calls all global constructors for C++ global objects
+// Must be called after zero_app_bss() and before app_setup()
+extern "C" void call_app_constructors(void) {
+  struct AppHeader {
+    uint32_t magic;
+    uint32_t version;
+    void (*app_setup)(void);
+    void (*app_loop)(void);
+    void* syscall_gate;
+    void* data_start;
+    void* data_end;
+    void* bss_start;
+    void* bss_end;
+    uint32_t* bss_marker;
+    void (**init_array_start)(void);
+    void (**init_array_end)(void);
+    void (**fini_array_start)(void);
+    void (**fini_array_end)(void);
+  };
+  
+  AppHeader* hdr = reinterpret_cast<AppHeader*>(kAppDst);
+  
+  // Validate header
+  if (hdr->magic != 0x41505041u) {  // "APPA"
+    return;  // Invalid header, skip
+  }
+  
+  // Call all constructors in .init_array
+  if (hdr->init_array_start != nullptr && hdr->init_array_end != nullptr) {
+    void (**start)(void) = hdr->init_array_start;
+    void (**end)(void) = hdr->init_array_end;
+    
+    // Calculate number of constructors
+    size_t count = end - start;
+    
+    if (count > 0) {
+      Serial.print("[Kernel] Calling ");
+      Serial.print(count);
+      Serial.println(" global constructor(s)...");
+      
+      // Call each constructor in order
+      for (size_t i = 0; i < count; i++) {
+        if (start[i] != nullptr) {
+          // Load code page containing this constructor if needed
+          uint32_t ctor_page = code_cache_find_page(reinterpret_cast<uint32_t>(start[i]));
+          if (ctor_page != UINT32_MAX) {
+            code_cache_load_page(ctor_page, true);
+          }
+          
+          // Call the constructor
+          start[i]();
+        }
+      }
     }
   }
 }

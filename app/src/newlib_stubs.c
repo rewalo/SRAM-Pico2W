@@ -45,15 +45,30 @@ extern char __heap_end__[];
 #define HEAP_END   ((char*)__heap_end__)
 #define HEAP_SIZE  (HEAP_END - HEAP_START)
 
-// heapPtr is initialized static (in .data), should be safe from BSS zeroing
-// But we validate it on each malloc call in case it gets corrupted
+// heapPtr is initialized statically (in .data section)
+// Static initialization happens during .data section copy, which occurs BEFORE
+// any global constructors run. This ensures the heap is ready when String
+// and other global objects need to allocate memory.
 static char* heapPtr = HEAP_START;
+
+#ifdef __cplusplus
+// Heap initialization constructor with highest priority (runs first)
+// This is a safety net to ensure heap is ready before any other constructors.
+// With proper global constructor ordering, static initialization should be sufficient,
+// but this provides an extra layer of protection.
+__attribute__((constructor(1))) static void init_heap_before_all() {
+    // Validate and reset heapPtr if corrupted (defensive check)
+    if (heapPtr == NULL || heapPtr < HEAP_START || heapPtr > HEAP_END) {
+        heapPtr = HEAP_START;
+    }
+}
+#endif
 
 // Override malloc - simple bump allocator
 void* malloc(size_t size) {
   if (size == 0) return NULL;
   
-  // Defensive: ensure heapPtr is valid (might have been corrupted or zeroed)
+  // Defensive check: reset heapPtr if corrupted (protection against memory corruption)
   if (heapPtr == NULL || heapPtr < HEAP_START || heapPtr > HEAP_END) {
     heapPtr = HEAP_START;
   }
@@ -117,7 +132,7 @@ void* realloc(void* ptr, size_t size) {
 
 // Provide _sbrk for newlib's internal use (even though we override malloc)
 void* _sbrk(ptrdiff_t incr) {
-  // Defensive: ensure heapPtr is valid
+  // Defensive check: reset heapPtr if corrupted
   if (heapPtr == NULL || heapPtr < HEAP_START || heapPtr > HEAP_END) {
     heapPtr = HEAP_START;
   }

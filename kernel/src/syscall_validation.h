@@ -1,6 +1,7 @@
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
+#include <Arduino.h>  // For Serial
 
 // SRAM region where app code runs
 #define kSramBaseAddr (0x20030000u)
@@ -21,7 +22,19 @@ inline bool isValidAppPointer(const void* ptr, size_t len) {
 
 // String validation - ensures at least 1 byte can be safely read
 inline bool isValidAppString(const char* str) {
-  return isValidAppPointer(str, 1);
+  bool valid = isValidAppPointer(str, 1);
+  if (!valid && str != nullptr) {
+    // Debug: print the actual address that failed
+    uintptr_t addr = reinterpret_cast<uintptr_t>(str);
+    Serial.print("[Kernel] Pointer validation failed: 0x");
+    Serial.print(addr, HEX);
+    Serial.print(" (SRAM: 0x");
+    Serial.print(kSramBaseAddr, HEX);
+    Serial.print("-0x");
+    Serial.print(kSramEndAddr, HEX);
+    Serial.println(")");
+  }
+  return valid;
 }
 
 }

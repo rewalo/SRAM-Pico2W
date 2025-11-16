@@ -4,8 +4,16 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+#include <stdio.h>
+// Include Arduino libraries BEFORE stdlib.h to avoid POSIX random() conflict
+#include "WMath.h"
+#include "WCharacter.h"
+#include <stdlib.h>
+#include <ctype.h>
 
 #include "app_syscalls.h"
+#include "WString.h"
 
 // Arduino-style Serial proxy - forwards calls to syscall wrappers
 struct SerialProxy {
@@ -50,6 +58,61 @@ struct SerialProxy {
     itoa10(v, buf);
     Serial_println_s(buf);
   }
+  
+  inline void print(unsigned int v) {
+    char buf[16];
+    // Convert unsigned int to string
+    char* p = buf;
+    if (v == 0) {
+      *p++ = '0';
+      *p = 0;
+    } else {
+      char tmp[12];
+      unsigned i = 0;
+      unsigned n = v;
+      while (n != 0 && i < sizeof(tmp)) {
+        tmp[i++] = '0' + (n % 10);
+        n /= 10;
+      }
+      while (i != 0) *p++ = tmp[--i];
+      *p = 0;
+    }
+    Serial_print_s(buf);
+  }
+  
+  inline void println(unsigned int v) {
+    print(v);
+    Serial_println();
+  }
+
+  // Long support - use sprintf for reliable formatting.
+  // Static buffer ensures valid memory location for kernel pointer validation.
+  inline void print(long v) {
+    static char buf[32];
+    sprintf(buf, "%ld", v);
+    Serial_print_s(buf);
+  }
+  inline void println(long v) {
+    print(v);
+    Serial_println();
+  }
+
+  // Char support.
+  // Static buffer ensures valid memory location for kernel pointer validation.
+  inline void print(char c) {
+    static char buf[2];
+    buf[0] = c;
+    buf[1] = 0;
+    Serial_print_s(buf);
+  }
+  inline void println(char c) {
+    print(c);
+    Serial_println();
+  }
+
+  // String support - defined after String class
+  inline void print(const String& s);
+  inline void println(const String& s);
 };
 
 // Global Serial object for app code
@@ -82,5 +145,14 @@ struct WireProxy {
 
 // Global Wire object for app code
 inline WireProxy Wire;
+
+// Serial String support - implement after String is defined
+inline void SerialProxy::print(const String& s) {
+  Serial_print_s(s.c_str());
+}
+
+inline void SerialProxy::println(const String& s) {
+  Serial_println_s(s.c_str());
+}
 
 #endif

@@ -155,6 +155,9 @@ if /I "%VERBOSE%"=="ON" (
 "%BIN%\arm-none-eabi-gcc.exe" -c "%APP%\src\app_header.c" -o "%TEMP%\app_header.o" %CFLAGS% || goto FAIL
 "%BIN%\arm-none-eabi-gcc.exe" -c "%APP%\src\generated\app_sys_raw.c" -o "%TEMP%\app_sys_raw.o" %CFLAGS% || goto FAIL
 "%BIN%\arm-none-eabi-g++.exe" -c "%APP%\src\app_export.c" -o "%TEMP%\app_export.o" %CFLAGS% || goto FAIL
+"%BIN%\arm-none-eabi-g++.exe" -c "%APP%\src\WString.cpp" -o "%TEMP%\WString.o" %CFLAGS% || goto FAIL
+"%BIN%\arm-none-eabi-g++.exe" -c "%APP%\src\WMath.cpp" -o "%TEMP%\WMath.o" %CFLAGS% || goto FAIL
+"%BIN%\arm-none-eabi-g++.exe" -c "%APP%\src\arduino_utils.cpp" -o "%TEMP%\arduino_utils.o" %CFLAGS% || goto FAIL
 
 if /I "%LIBC%"=="ON" (
   if /I "%VERBOSE%"=="ON" (
@@ -175,6 +178,9 @@ if /I "%LIBC%"=="ON" (
     "%TEMP%\app_header.o" ^
     "%TEMP%\app_sys_raw.o" ^
     "%TEMP%\app_export.o" ^
+    "%TEMP%\WString.o" ^
+    "%TEMP%\WMath.o" ^
+    "%TEMP%\arduino_utils.o" ^
     %LIBC_OBJ% ^
     -o "%BUILD%\app.elf" %CFLAGS% %LDFLAGS% || goto FAIL
 ) else (
@@ -183,6 +189,9 @@ if /I "%LIBC%"=="ON" (
     "%TEMP%\app_header.o" ^
     "%TEMP%\app_sys_raw.o" ^
     "%TEMP%\app_export.o" ^
+    "%TEMP%\WString.o" ^
+    "%TEMP%\WMath.o" ^
+    "%TEMP%\arduino_utils.o" ^
     -o "%BUILD%\app.elf" %CFLAGS% %LDFLAGS% || goto FAIL
 )
 

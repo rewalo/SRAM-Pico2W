@@ -45,6 +45,24 @@ SECTIONS {
     __bss_end__ = .;
   } > RAM
 
+  /* Global constructors array - CRITICAL for C++ global object initialization */
+  .init_array : {
+    __init_array_start__ = .;
+    KEEP(*(.init_array))
+    KEEP(*(.ctors))
+    . = ALIGN(4);
+    __init_array_end__ = .;
+  } > RAM
+
+  /* Global destructors array */
+  .fini_array : {
+    __fini_array_start__ = .;
+    KEEP(*(.fini_array))
+    KEEP(*(.dtors))
+    . = ALIGN(4);
+    __fini_array_end__ = .;
+  } > RAM
+
   /* Heap starts after unified .bss - single source of truth */
   . = ALIGN(8);
   __heap_start__ = .;
@@ -70,10 +88,6 @@ SECTIONS {
     *(.init*)
     *(.fini*)
     *(.preinit_array*)
-    *(.init_array*)
-    *(.fini_array*)
-    *(.ctors*)
-    *(.dtors*)
     *(.jcr*)
     *(.got*)
     *(.got.plt*)
