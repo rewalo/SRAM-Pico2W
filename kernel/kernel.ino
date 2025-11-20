@@ -58,6 +58,7 @@ extern "C" uintptr_t KernelSyscallDispatch(uint16_t id, uintptr_t a0,
                                             uintptr_t a25, uintptr_t a26,
                                             uintptr_t a27, uintptr_t a28,
                                             uintptr_t a29);
+extern "C" void StartCore1SyscallTask(void);
 
 // FreeRTOS task that runs app's loop() repeatedly
 static void appTask(void*) {
@@ -112,6 +113,7 @@ void setup() {
   // Launch app loop as separate FreeRTOS task
   xTaskCreate(appTask, "AppTask", 4096, nullptr,
               tskIDLE_PRIORITY + 1, nullptr);
+  StartCore1SyscallTask();
 }
 
 void loop() {

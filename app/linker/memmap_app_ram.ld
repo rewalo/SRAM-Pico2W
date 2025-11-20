@@ -11,14 +11,24 @@ SECTIONS {
     . = ALIGN(4);
   } > RAM
 
+  /* CRITICAL: Syscall infrastructure must be at fixed address, not in overlay */
+  /* This ensures __syscall_raw() is always accessible even when code pages are swapped */
+  /* Place it right after the header in RAM */
+  .syscall_infra : {
+    *app_sys_raw.o(.text*)
+    *app_sys_raw.o(.rodata*)
+    . = ALIGN(4);
+  } > RAM
+
   /* Code and read-only data - goes into overlay window */
   /* All code pages will load into this fixed region, overlaying each other */
+  /* EXCEPT: app_sys_raw.o is excluded (handled above in .syscall_infra) */
   .text : {
-    *(.text*)
-    *(.rodata*)
-    *(.srodata*)
-    *(.gnu.linkonce.t.*)
-    *(.gnu.linkonce.r.*)
+    EXCLUDE_FILE (*app_sys_raw.o) *(.text*)
+    EXCLUDE_FILE (*app_sys_raw.o) *(.rodata*)
+    EXCLUDE_FILE (*app_sys_raw.o) *(.srodata*)
+    EXCLUDE_FILE (*app_sys_raw.o) *(.gnu.linkonce.t.*)
+    EXCLUDE_FILE (*app_sys_raw.o) *(.gnu.linkonce.r.*)
     . = ALIGN(4);
   } > CODE_OVERLAY
 

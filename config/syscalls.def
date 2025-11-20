@@ -48,3 +48,12 @@ SYSCALL(Wire_write_b,          size_t,  (uint8_t data))
 SYSCALL(Wire_write_buf,        size_t,  (const uint8_t* data, size_t length))
 SYSCALL(Wire_available,        int,    ())
 SYSCALL(Wire_read,             int,    ())
+
+// Multicore functions
+// Note: multicore_launch_core1 takes function pointer as uintptr_t (cast from void (*)(void))
+SYSCALL(multicore_reset_core1,  void,   ())
+SYSCALL(multicore_launch_core1, void,   (uintptr_t entry))
+SYSCALL(multicore_fifo_push_blocking, void, (uint32_t data))
+SYSCALL(multicore_fifo_pop_blocking, uint32_t, ())
+SYSCALL(multicore_fifo_rvalid, bool,   ())
+SYSCALL(multicore_fifo_wready, bool,   ())

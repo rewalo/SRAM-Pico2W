@@ -22,6 +22,26 @@ void nested_function_b();
 void nested_function_c();
 void large_function_1();
 void large_function_2();
+void core1_entry();  // Core 1 entry function
+
+namespace core1_telemetry {
+constexpr uintptr_t kCore1StatusAddr = 0x2002F000u;
+constexpr bool kCore1StatusEnabled = false;
+
+[[maybe_unused]] inline void SetCore1Status(uint32_t value) {
+  if (!kCore1StatusEnabled) {
+    return;
+  }
+  *reinterpret_cast<volatile uint32_t*>(kCore1StatusAddr) = value;
+}
+}  // namespace core1_telemetry
+
+constexpr uintptr_t kSioBase = 0xD0000000u;
+constexpr uintptr_t kSioCpuidOffset = 0x00000000u;
+
+inline uint32_t ReadCoreId() {
+  return *reinterpret_cast<volatile uint32_t*>(kSioBase + kSioCpuidOffset) & 0x3u;
+}
 
 String a1 = "hello world";
 String sub = a1.substring(0, 3);
@@ -30,6 +50,9 @@ String a2 = "HALLO WORLD";
 String lower = a2.toLower();
 
 void setup() {
+  Serial.begin(115200);
+  Serial.flush();
+
   Serial.println("Hello from SRAM");
   Serial.println(sub);
   Serial.println(lower);
@@ -49,6 +72,8 @@ void setup() {
   Serial.print("Character: ");
   Serial.println(c);
   pinMode(LED_BUILTIN, OUTPUT);
+  
+  multicore_launch_core1(core1_entry);
 
   // Test malloc/free
   Serial.println("\n=== Testing malloc/free ===");
@@ -221,7 +246,7 @@ void loop() {
   static uint32_t counter = 0;
   counter++;
 
-  digitalWrite(LED_BUILTIN, HIGH);
+  //digitalWrite(LED_BUILTIN, HIGH);
   delay(150);
 
   // Periodically print counter using libc
@@ -232,7 +257,7 @@ void loop() {
     free(msg);
   }
 
-  digitalWrite(LED_BUILTIN, LOW);
+  //digitalWrite(LED_BUILTIN, LOW);
   delay(150);
 }
 
@@ -477,4 +502,23 @@ void large_function_2() {
   free(buf);
   
   Serial.println("    [large2] Finished");
+}
+
+// Core 1 entry function - runs on the second core
+void core1_entry() {
+  const uint32_t core_id = ReadCoreId();
+
+  Serial.print("[Core1] Running on core ");
+  Serial.println(static_cast<unsigned int>(core_id));
+  Serial.flush();
+
+  pinMode(LED_BUILTIN, OUTPUT);
+
+  for (;;) {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(500);
+
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(500);
+  }
 }

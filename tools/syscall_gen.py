@@ -167,11 +167,26 @@ prefix_map = {
             # requestFrom returns size_t and takes (uint8_t, size_t)
             "requestFrom": "static_cast<size_t (TwoWire::*)(uint8_t, size_t)>(&TwoWire::requestFrom)",
         }
+    },
+    "multicore_": {
+        # Treat all multicore_* functions as free functions (not object methods)
+        # Map syscall names directly to Pico SDK function names
+        "free_functions": {
+            "reset_core1": "multicore_reset_core1",
+            "launch_core1": "syscall_safe_wrappers::multicoreLaunchCore1Safe",  # Uses safe wrapper
+            "fifo_push_blocking": "multicore_fifo_push_blocking",
+            "fifo_pop_blocking": "multicore_fifo_pop_blocking",
+            "fifo_rvalid": "multicore_fifo_rvalid",
+            "fifo_wready": "multicore_fifo_wready",
+        }
     }
 }
 
 # First pass: detect objects from syscall names
 # We auto-detect all objects; overrides are handled in dispatch phase
+# Exclude prefixes that are NOT objects (like namespace prefixes)
+non_object_prefixes = {"multicore"}  # These are prefixes, not object names
+
 for n, ret, args, annot_type, annot_obj, annot_method in syscalls:
     if annot_type == "member":
         continue  # Skip manual annotations
@@ -182,7 +197,9 @@ for n, ret, args, annot_type, annot_obj, annot_method in syscalls:
         if len(parts) == 2:
             obj_name = parts[0]
             method_name = parts[1]
-            detected_objects.add(obj_name)
+            # Only add to detected_objects if it's not a known non-object prefix
+            if obj_name not in non_object_prefixes:
+                detected_objects.add(obj_name)
 
 # Generate type aliases for detected objects
 dispatch = ""
@@ -218,7 +235,16 @@ for n, ret, args, annot_type, annot_obj, annot_method in syscalls:
         if n.startswith(prefix):
             key = n[len(prefix):]
             parts = parts_for_prefix  # Reuse for method_name mapping
-            if "safe_wrappers" in cfg and key in cfg["safe_wrappers"]:
+            if "free_functions" in cfg and key in cfg["free_functions"]:
+                # Map to free function (may be a safe wrapper or direct function)
+                func_name = cfg["free_functions"][key]
+                dispatch += (
+                    f"  case SYSC_{n}: "
+                    f"return detail::invoke<&{func_name}>({arg_list_str});\n"
+                )
+                handled = True
+                break
+            elif "safe_wrappers" in cfg and key in cfg["safe_wrappers"]:
                 # Use safe wrapper function
                 safe_wrapper = cfg["safe_wrappers"][key]
                 dispatch += (
@@ -352,7 +378,13 @@ for i, (n, ret, args, annot_type, annot_obj, annot_method) in enumerate(syscalls
             if n.startswith(prefix):
                 key = n[len(prefix):]
                 parts = parts_for_prefix
-                if "safe_wrappers" in cfg and key in cfg["safe_wrappers"]:
+                if "free_functions" in cfg and key in cfg["free_functions"]:
+                    # Map to free function (may be a safe wrapper or direct function)
+                    func_name = cfg["free_functions"][key]
+                    invoke_call = f"return detail::invoke<&{func_name}>({arg_list_str});"
+                    handled = True
+                    break
+                elif "safe_wrappers" in cfg and key in cfg["safe_wrappers"]:
                     safe_wrapper = cfg["safe_wrappers"][key]
                     invoke_call = f"return detail::invoke<&{safe_wrapper}>({arg_list_str});"
                     handled = True

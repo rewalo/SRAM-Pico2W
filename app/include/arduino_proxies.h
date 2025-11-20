@@ -155,4 +155,19 @@ inline void SerialProxy::println(const String& s) {
   Serial_println_s(s.c_str());
 }
 
+// Multicore helper - wraps syscall to accept function pointer directly
+// This overload allows passing function pointers without explicit casting
+// Note: The generated multicore_launch_core1(uintptr_t) is included via app_syscalls.h
+// We use a helper to avoid infinite recursion in the overload
+namespace multicore_helpers {
+  inline void launch_core1_impl(uintptr_t entry_addr) {
+    // Call the generated syscall wrapper
+    multicore_launch_core1(entry_addr);
+  }
+}
+
+inline void multicore_launch_core1(void (*entry)(void)) {
+  multicore_helpers::launch_core1_impl(reinterpret_cast<uintptr_t>(entry));
+}
+
 #endif

@@ -27,10 +27,18 @@ typedef enum {
 #define DEG_TO_RAD  0.01745329251994329577
 #define RAD_TO_DEG  57.2957795130823208768
 
+#ifndef constrain
 #define constrain(x,l,h) ((x)<(l)?(l):((x)>(h)?(h):(x)))
+#endif
+#ifndef radians
 #define radians(deg) ((deg)*DEG_TO_RAD)
+#endif
+#ifndef degrees
 #define degrees(rad) ((rad)*RAD_TO_DEG)
+#endif
+#ifndef sq
 #define sq(x) ((x)*(x))
+#endif
 
 // ========= Bit helpers =========
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
