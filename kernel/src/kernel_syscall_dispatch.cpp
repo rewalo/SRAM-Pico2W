@@ -7,6 +7,12 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <pico/multicore.h>
+#include <pico/bootrom.h>
+#include <hardware/watchdog.h>
+#include <hardware/gpio.h>
+#include <hardware/sync.h>
+#include <hardware/structs/ioqspi.h>
+#include <hardware/structs/sio.h>
 #include <FreeRTOS.h>
 #include <task.h>
 
@@ -78,6 +84,66 @@ static void spiBeginTransaction() {
   SPI.beginTransaction(SPISettings());  // Default settings
 }
 }  // namespace syscall_safe_wrappers
+
+// BOOTSEL button check - reads the bootsel button state.
+// Based on Arduino Pico's implementation, but adapted for syscall context.
+// The original uses rp2040.idleOtherCore() which can deadlock when called
+// from core 1 via syscall proxy. This version works safely from core 0.
+// Must be in global namespace for syscall generator.
+static bool __no_inline_not_in_flash_func(GetBootselButtonSafe)() {
+  constexpr uint32_t kCsPinIndex = 1;
+  constexpr int kSettleDelay = 1000;
+  
+  // Since we're executing on core 0 (via syscall proxy), we can safely
+  // access flash CS pin. We skip rp2040.idleOtherCore() because:
+  // 1. If called from core 0 directly, it's not needed.
+  // 2. If called from core 1 via proxy, we're already on core 0.
+  // 3. FreeRTOS context might have issues with core idling.
+  
+  // Disable interrupts - critical section for flash access.
+  noInterrupts();
+  
+  // Set chip select to Hi-Z (floating) to read button state.
+  hw_write_masked(&ioqspi_hw->io[kCsPinIndex].ctrl,
+                  GPIO_OVERRIDE_LOW << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+                  IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+  
+  // Small delay to let pin settle.
+  for (volatile int i = 0; i < kSettleDelay; ++i) {
+    // Busy wait.
+  }
+  
+  // Read button state - button pulls pin LOW when pressed.
+  // Use SIO GPIO HI register to read QSPI CS pin.
+#if PICO_RP2040
+  constexpr uint32_t kCsBit = (1u << 1);
+#else
+  constexpr uint32_t kCsBit = SIO_GPIO_HI_IN_QSPI_CSN_BITS;
+#endif
+  const bool button_pressed = !(sio_hw->gpio_hi_in & kCsBit);
+  
+  // Restore chip select to normal operation.
+  hw_write_masked(&ioqspi_hw->io[kCsPinIndex].ctrl,
+                  GPIO_OVERRIDE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+                  IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+  
+  // Re-enable interrupts.
+  interrupts();
+  
+  return button_pressed;
+}
+
+bool bootselButton() {
+  // Call the safe implementation that works from syscall context.
+  // This runs on core 0 (where syscalls execute), so it's safe.
+  return GetBootselButtonSafe();
+}
+
+// Software reset - resets the device
+// Must be in global namespace for syscall generator
+void softwareReset() {
+  watchdog_reboot(0, 0, 0);  // Use watchdog to reset
+}
 
 // Shared variable for core 1 entry address (accessed from both cores)
 // Must be outside namespace for C function access
@@ -245,7 +311,7 @@ extern "C" void core1_kernel_entry(void) {
 
 #if defined(DEBUG_SYSCALLS)
 static const char* sysNames[] = {
-#include "syscall_names.inc.h"
+#include "generated/syscall_names.inc.h"
 };
 #endif
 

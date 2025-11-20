@@ -57,3 +57,7 @@ SYSCALL(multicore_fifo_push_blocking, void, (uint32_t data))
 SYSCALL(multicore_fifo_pop_blocking, uint32_t, ())
 SYSCALL(multicore_fifo_rvalid, bool,   ())
 SYSCALL(multicore_fifo_wready, bool,   ())
+
+// System functions
+SYSCALL(bootselButton, bool, ())
+SYSCALL(softwareReset, void, ())

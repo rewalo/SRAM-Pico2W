@@ -170,4 +170,8 @@ inline void multicore_launch_core1(void (*entry)(void)) {
   multicore_helpers::launch_core1_impl(reinterpret_cast<uintptr_t>(entry));
 }
 
+// BOOTSEL and softwareReset are available as syscalls
+// They're included via app_syscalls.h, so no wrapper needed
+// Just use BOOTSEL() and softwareReset() directly in your code
+
 #endif

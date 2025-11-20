@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <math.h>
 
+// Forward declaration for core 1 task
+void core1Task();
+
 // Forward declarations for cross-page function call tests
 void test_function_chain();
 void test_function_pointers();
@@ -22,7 +25,7 @@ void nested_function_b();
 void nested_function_c();
 void large_function_1();
 void large_function_2();
-void core1_entry();  // Core 1 entry function
+void core1Task();  // Core 1 task function
 
 namespace core1_telemetry {
 constexpr uintptr_t kCore1StatusAddr = 0x2002F000u;
@@ -73,7 +76,7 @@ void setup() {
   Serial.println(c);
   pinMode(LED_BUILTIN, OUTPUT);
   
-  multicore_launch_core1(core1_entry);
+  multicore_launch_core1(core1Task);
 
   // Test malloc/free
   Serial.println("\n=== Testing malloc/free ===");
@@ -504,21 +507,15 @@ void large_function_2() {
   Serial.println("    [large2] Finished");
 }
 
-// Core 1 entry function - runs on the second core
-void core1_entry() {
-  const uint32_t core_id = ReadCoreId();
-
-  Serial.print("[Core1] Running on core ");
-  Serial.println(static_cast<unsigned int>(core_id));
-  Serial.flush();
-
-  pinMode(LED_BUILTIN, OUTPUT);
-
+// Core 1 task - monitors BOOTSEL button and resets if pressed
+void core1Task() {
   for (;;) {
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(500);
-
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(500);
+    if (bootselButton()) {
+      while (bootselButton()) {
+        // Wait for button release
+      }
+      softwareReset();
+    }
+    delay(10);
   }
 }

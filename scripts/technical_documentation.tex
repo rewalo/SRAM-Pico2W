@@ -299,6 +299,9 @@ To expose additional Arduino functions to applications:
 \begin{lstlisting}[language=C]
 SYSCALL(analogRead, int, (int pin))
 SYSCALL(analogWrite, void, (int pin, int value))
+SYSCALL(multicore_launch_core1, void, (uintptr_t entry))
+SYSCALL(bootselButton, bool, ())
+SYSCALL(softwareReset, void, ())
 \end{lstlisting}
 \end{infobox}
 
@@ -395,6 +398,7 @@ SRAM is organized starting at address \code{0x20030000}:
       \item Patches syscall gate pointer into application header
       \item Calls \code{app\_setup()} once in kernel context
       \item Launches FreeRTOS task for \code{app\_loop()}
+      \item Core 1 remains idle until explicitly launched by application
     \end{itemize}
   \item \textbf{Application Execution:}
     \begin{itemize}
@@ -403,6 +407,7 @@ SRAM is organized starting at address \code{0x20030000}:
       \item Overlay system manages page loading and eviction transparently
       \item Hardware access via syscall gate $\rightarrow$ kernel dispatcher
       \item Kernel services execute from flash-resident code
+      \item Core 1 tasks execute independently if launched by application
     \end{itemize}
 \end{enumerate}
 
@@ -449,6 +454,109 @@ The syscall mechanism works as follows:
                  | Hardware access      |
                  +----------------------+
 \end{verbatim}
+
+\subsection{Multicore Support}
+
+SRAM-Pico2W supports dual-core execution on the RP2350, allowing applications to utilize both Cortex-M33 cores. Core 0 runs the kernel, FreeRTOS, and the main application loop, while core 1 can execute independent tasks defined by the application.
+
+\subsubsection{Core Architecture}
+
+\begin{itemize}
+  \item \textbf{Core 0:} Kernel, FreeRTOS, Arduino core, and main application execution
+  \item \textbf{Core 1:} Independent application tasks launched via syscalls
+  \item \textbf{Inter-core Communication:} Hardware FIFOs and shared memory for coordination
+\end{itemize}
+
+\subsubsection{Core 1 Launch Mechanism}
+
+Applications launch core 1 by calling \code{multicore\_launch\_core1()} with a function pointer:
+
+\begin{lstlisting}[language=C++]
+void core1Task() {
+  // Core 1 code here
+  for (;;) {
+    // Task loop
+  }
+}
+
+void setup() {
+  multicore_launch_core1(core1Task);
+}
+\end{lstlisting}
+
+The kernel validates the function pointer to ensure it points to valid SRAM-resident code, then launches core 1 using a kernel-resident entry function. This entry function loads the application's entry point code page into the overlay window and transfers control to the application function.
+
+\begin{infobox}{Core 1 Entry Point}
+\begin{itemize}
+  \item Function pointer must point to SRAM-resident code (validated by kernel)
+  \item Entry function is loaded into the overlay window on demand
+  \item Core 1 executes independently from core 0's FreeRTOS tasks
+\end{itemize}
+\end{infobox}
+
+\subsubsection{Core 1 Syscall Proxy}
+
+Since FreeRTOS and Arduino APIs run on core 0, syscalls made from core 1 are automatically proxied to core 0 for execution. This ensures thread-safe access to hardware resources:
+
+\begin{verbatim}
+Core 1 Application
+    |
+    | syscall (e.g., Serial.print)
+    v
+Core 1 Syscall Handler
+    |
+    | Message via shared memory
+    v
+Core 0 Syscall Worker Task (FreeRTOS)
+    |
+    | Execute on core 0
+    v
+Arduino Core / Hardware
+\end{verbatim}
+
+\begin{warningbox}{Core 1 Limitations}
+\begin{itemize}
+  \item Core 1 cannot directly call FreeRTOS APIs (they run on core 0)
+  \item All hardware access from core 1 goes through syscall proxy
+  \item Blocking operations on core 1 will block the proxy worker task
+\end{itemize}
+\end{warningbox}
+
+\subsubsection{Inter-Core Communication}
+
+The system provides hardware FIFO functions for inter-core communication:
+
+\begin{lstlisting}[language=C++]
+// Push data to other core
+multicore_fifo_push_blocking(data);
+
+// Pop data from FIFO (blocks until data available)
+uint32_t data = multicore_fifo_pop_blocking();
+
+// Check if data is available
+if (multicore_fifo_rvalid()) {
+  // Data ready to read
+}
+
+// Check if FIFO has space
+if (multicore_fifo_wready()) {
+  // Can write without blocking
+}
+\end{lstlisting}
+
+\subsubsection{System Control Functions}
+
+The system provides additional control functions for multicore operations:
+
+\begin{itemize}
+  \item \code{multicore\_reset\_core1()}: Resets core 1 to a known state
+  \item \code{bootselButton()}: Checks the state of the BOOTSEL button (safe from any core)
+  \item \code{softwareReset()}: Performs a software reset of the entire system
+\end{itemize}
+
+\begin{infobox}{BOOTSEL Button Access}
+The \code{bootselButton()} syscall provides safe access to the BOOTSEL button state from any core. Unlike the Arduino Pico \code{BOOTSEL} object, this implementation does not idle the other core, preventing deadlocks when called from core 1 via the syscall proxy.
+\end{infobox}
 
 \section{Build System}
 
@@ -569,6 +677,11 @@ SYSCALL(pinMode,        void,    (uint8_t pin, uint8_t mode))
 SYSCALL(digitalWrite,   void,    (uint8_t pin, uint8_t val))
 SYSCALL(digitalRead,    int,     (uint8_t pin))
 SYSCALL(Serial_print_s, size_t,  (const char* s))
+SYSCALL(multicore_launch_core1, void, (uintptr_t entry))
+SYSCALL(multicore_fifo_push_blocking, void, (uint32_t data))
+SYSCALL(multicore_fifo_pop_blocking, uint32_t, ())
+SYSCALL(bootselButton,  bool,    ())
+SYSCALL(softwareReset,  void,    ())
 \end{lstlisting}
 \end{infobox}
 
@@ -936,9 +1049,11 @@ static void appTask(void*) {
 
 \begin{infobox}{FreeRTOS Design Decisions}
 \begin{itemize}
-  \item Application \code{loop()} runs in separate FreeRTOS task
+  \item Application \code{loop()} runs in separate FreeRTOS task on core 0
   \item 1ms cooperative yield prevents task starvation
   \item Kernel \code{loop()} provides watchdog/management functions
+  \item Core 1 syscall proxy runs in dedicated FreeRTOS task on core 0
+  \item Core 1 application tasks execute independently outside FreeRTOS
 \end{itemize}
 \end{infobox}
 
@@ -1153,6 +1268,7 @@ The following optimizations reduce syscall overhead:
   \item Peripheral drivers (SPI, I2C, etc.)
   \item Interrupt handling
   \item Power management
+  \item Enhanced multicore synchronization primitives
 \end{itemize}
 
 \section{Code Style and Standards}
