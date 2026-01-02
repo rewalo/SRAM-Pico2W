@@ -16,6 +16,36 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+// Stub out Ethernet async-context functions that lwIP_Ethernet expects
+// These are required by lwIP_Ethernet but not available in FreeRTOS builds
+// We provide minimal stubs to satisfy the linker
+// Note: These are Pico SDK async_context functions that Ethernet library needs
+extern "C" {
+  // Stub: Return default config (we don't use Ethernet, so return nullptr)
+  void* async_context_threadsafe_background_default_config(void) {
+    return nullptr;
+  }
+  
+  // Stub: Initialize async context (we don't use Ethernet, so return nullptr)
+  void* async_context_threadsafe_background_init(void* config) {
+    (void)config;  // Suppress unused parameter warning
+    return nullptr;
+  }
+}
+
+#include <WiFi.h>
+// Intentionally do NOT include <WiFiServer.h>/<WiFiClient.h>/<WiFiUdp.h> here.
+// Those headers can pull in lwIP Ethernet async-context glue which conflicts with
+// this FreeRTOS-based kernel build in some Arduino-Pico configurations.
+// SerialBT requires Bluetooth to be enabled in IDE settings.
+// Only include it when the core sets ENABLE_CLASSIC=1 (Tools -> IP/Bluetooth Stack).
+#if defined(ENABLE_CLASSIC) && ENABLE_CLASSIC
+#include <SerialBT.h>
+#define SRAM_PICO2W_HAS_SERIALBT 1
+#else
+#define SRAM_PICO2W_HAS_SERIALBT 0
+#endif
+
 #include "generated/syscall_ids.h"
 #include "syscall_invoke.h"
 #include "syscall_validation.h"
@@ -143,6 +173,314 @@ bool bootselButton() {
 // Must be in global namespace for syscall generator
 void softwareReset() {
   watchdog_reboot(0, 0, 0);  // Use watchdog to reset
+}
+
+// =====================================================================
+// Interrupt support
+// =====================================================================
+
+// Interrupt mode constants (matching Arduino)
+#define CHANGE  0x01
+#define FALLING 0x02
+#define RISING  0x03
+
+// Storage for ISR function pointers (max 30 GPIO pins)
+static void (*isr_handlers[30])(void) = {nullptr};
+
+// GPIO interrupt callback - dispatches to app ISR
+static void gpio_isr_callback(uint gpio, uint32_t events) {
+  if (gpio < 30 && isr_handlers[gpio] != nullptr) {
+    // Validate ISR pointer is in SRAM (app code region)
+    uintptr_t isr_addr = reinterpret_cast<uintptr_t>(isr_handlers[gpio]);
+    if (syscall_validation::isValidAppPointer(reinterpret_cast<const void*>(isr_addr), 0)) {
+      // Call the app ISR
+      isr_handlers[gpio]();
+    }
+  }
+}
+
+// Attach interrupt handler to GPIO pin
+// NOTE: Must NOT be named attachInterrupt, because Arduino core provides overloads and
+// the generated jump table needs an unambiguous function pointer.
+void KernelAttachInterrupt(uint8_t pin, uintptr_t isr_addr, int mode) {
+  if (pin >= 30) {
+    Serial.print("[Kernel] ERROR: attachInterrupt pin ");
+    Serial.print(pin);
+    Serial.println(" out of range");
+    return;
+  }
+  
+  // Validate ISR pointer is in SRAM
+  if (!syscall_validation::isValidAppPointer(reinterpret_cast<const void*>(isr_addr), 0)) {
+    Serial.print("[Kernel] ERROR: attachInterrupt ISR pointer 0x");
+    Serial.print(isr_addr, HEX);
+    Serial.println(" is not in SRAM");
+    return;
+  }
+  
+  // Convert Arduino interrupt mode to Pico SDK mode
+  uint32_t pico_mode = 0;
+  if (mode == RISING) {
+    pico_mode = GPIO_IRQ_EDGE_RISE;
+  } else if (mode == FALLING) {
+    pico_mode = GPIO_IRQ_EDGE_FALL;
+  } else if (mode == CHANGE) {
+    pico_mode = GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL;
+  } else {
+    Serial.print("[Kernel] ERROR: attachInterrupt invalid mode ");
+    Serial.println(mode);
+    return;
+  }
+  
+  // Store ISR handler
+  isr_handlers[pin] = reinterpret_cast<void (*)(void)>(isr_addr);
+  
+  // Configure GPIO interrupt
+  gpio_set_irq_enabled_with_callback(pin, pico_mode, true, gpio_isr_callback);
+}
+
+// Detach interrupt handler from GPIO pin
+// See note above about naming.
+void KernelDetachInterrupt(uint8_t pin) {
+  if (pin >= 30) {
+    return;
+  }
+  
+  // Disable GPIO interrupt
+  gpio_set_irq_enabled(pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false);
+  
+  // Clear ISR handler
+  isr_handlers[pin] = nullptr;
+}
+
+// =====================================================================
+// WiFi support wrappers
+// =====================================================================
+
+namespace syscall_safe_wrappers {
+// WiFi begin with password
+static int wifiBegin(const char* ssid, const char* password) {
+  if (!syscall_validation::isValidAppString(ssid)) {
+    Serial.println("[Kernel] ERROR: Invalid SSID pointer in WiFi.begin");
+    return WL_CONNECT_FAILED;
+  }
+  if (password != nullptr && !syscall_validation::isValidAppString(password)) {
+    Serial.println("[Kernel] ERROR: Invalid password pointer in WiFi.begin");
+    return WL_CONNECT_FAILED;
+  }
+  return WiFi.begin(ssid, password);
+}
+
+// WiFi begin open network
+static int wifiBeginOpen(const char* ssid) {
+  if (!syscall_validation::isValidAppString(ssid)) {
+    Serial.println("[Kernel] ERROR: Invalid SSID pointer in WiFi.begin");
+    return WL_CONNECT_FAILED;
+  }
+  return WiFi.begin(ssid);
+}
+
+// WiFi status - returns uint8_t, but syscall expects int
+static int wifiStatus() {
+  return static_cast<int>(WiFi.status());
+}
+
+// WiFi disconnect - takes optional bool parameter, but syscall has none
+static int wifiDisconnect() {
+  return WiFi.disconnect();  // Calls disconnect(false)
+}
+
+// WiFi localIP - returns IPAddress, convert to uint32_t
+static uint32_t wifiLocalIP() {
+  return WiFi.localIP();
+}
+
+// WiFi subnetMask - returns IPAddress, convert to uint32_t
+static uint32_t wifiSubnetMask() {
+  return WiFi.subnetMask();
+}
+
+// WiFi gatewayIP - returns IPAddress, convert to uint32_t
+static uint32_t wifiGatewayIP() {
+  return WiFi.gatewayIP();
+}
+
+// WiFi SSID getter - returns pointer to internal buffer (safe for app to read)
+static const char* wifiSSID() {
+  return WiFi.SSID().c_str();
+}
+
+// WiFi hostname setter
+static int wifiHostname(const char* hostname) {
+  if (!syscall_validation::isValidAppString(hostname)) {
+    Serial.println("[Kernel] ERROR: Invalid hostname pointer in WiFi.hostname");
+    return 0;
+  }
+  WiFi.hostname(hostname);  // Returns void, not int
+  return 1;  // Return success
+}
+
+// WiFi hostname getter
+static const char* wifiGetHostname() {
+  return WiFi.getHostname();  // Already returns const char*, not String
+}
+
+// WiFi MAC address getter - copies to app buffer
+static uint8_t* wifiMacAddress(uint8_t* mac) {
+  if (!syscall_validation::isValidAppPointer(mac, 6)) {
+    Serial.println("[Kernel] ERROR: Invalid MAC buffer pointer in WiFi.macAddress");
+    return nullptr;
+  }
+  uint8_t* kernel_mac = WiFi.macAddress(mac);
+  // Copy to app buffer if kernel returned different pointer
+  if (kernel_mac != mac) {
+    memcpy(mac, kernel_mac, 6);
+  }
+  return mac;
+}
+}  // namespace syscall_safe_wrappers
+
+// =====================================================================
+// Bluetooth/SerialBT support wrappers
+// =====================================================================
+// Note: Pico W/2W uses SerialBT for Bluetooth Classic, not ArduinoBLE
+// SerialBT provides serial port profile (SPP) functionality
+
+namespace syscall_safe_wrappers {
+// SerialBT begin - starts Bluetooth Classic
+// Note: SerialBT.begin() returns void, not bool
+static bool serialBTBegin() {
+  #if SRAM_PICO2W_HAS_SERIALBT
+  SerialBT.begin();
+  return true;
+  #else
+  Serial.println("[Kernel] ERROR: SerialBT requires Bluetooth to be enabled in IDE settings");
+  return false;
+  #endif
+}
+
+// SerialBT end - stops Bluetooth Classic
+static void serialBTEnd() {
+  #if SRAM_PICO2W_HAS_SERIALBT
+  SerialBT.end();
+  #endif
+}
+
+// SerialBT available - checks if data is available
+static bool serialBTAvailable() {
+  #if SRAM_PICO2W_HAS_SERIALBT
+  return SerialBT.available() > 0;
+  #else
+  return false;
+  #endif
+}
+
+// SerialBT connected - checks if connected
+// Note: SerialBT doesn't have hasClient(), use available() as proxy
+static bool serialBTConnected() {
+  #if SRAM_PICO2W_HAS_SERIALBT
+  return SerialBT.available() > 0;  // Approximate - SerialBT doesn't expose connection state directly
+  #else
+  return false;
+  #endif
+}
+
+// SerialBT disconnect - disconnects client
+// Note: SerialBT doesn't have disconnect(), use end() instead
+static void serialBTDisconnect() {
+  #if SRAM_PICO2W_HAS_SERIALBT
+  SerialBT.end();  // End connection
+  #endif
+}
+
+// SerialBT address - gets MAC address (returns static buffer)
+static const char* serialBTAddress() {
+  // SerialBT doesn't have a direct address() method
+  // Use WiFi MAC address as Bluetooth uses the same chip
+  static char mac_str[18];
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  sprintf(mac_str, "%02X:%02X:%02X:%02X:%02X:%02X",
+          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return mac_str;
+}
+
+// SerialBT advertise (stub - SerialBT doesn't have explicit advertise)
+static void serialBTAdvertise() {
+  // SerialBT automatically advertises when begin() is called
+  // This is a no-op for compatibility
+}
+
+// SerialBT stop advertise (stub)
+static void serialBTStopAdvertise() {
+  // SerialBT doesn't have explicit stop advertise
+  // This is a no-op for compatibility
+}
+
+// SerialBT set advertised service UUID (not available in SerialBT, stub)
+static void bleSetAdvertisedServiceUuid(const char* uuid) {
+  // SerialBT doesn't support BLE advertising - this is a stub
+  (void)uuid;  // Suppress unused parameter warning
+}
+
+// SerialBT set advertised service data (not available in SerialBT, stub)
+static void bleSetAdvertisedServiceData(uint16_t uuid, const uint8_t* data, uint8_t length) {
+  // SerialBT doesn't support BLE advertising - this is a stub
+  (void)uuid;
+  (void)data;
+  (void)length;
+}
+
+// SerialBT set local name (not directly supported, stub)
+static void bleSetLocalName(const char* name) {
+  // SerialBT doesn't have a direct setLocalName - this is a stub
+  (void)name;
+}
+
+// SerialBT address getter
+static const char* bleAddress() {
+  return serialBTAddress();
+}
+
+// SerialBT central (not applicable for SerialBT, always returns false)
+static bool serialBTCentral() {
+  // SerialBT acts as a peripheral, not central
+  return false;
+}
+}  // namespace syscall_safe_wrappers
+
+// Global BLE functions that map to SerialBT
+// Must be in global namespace for syscall generator
+bool BLE_begin() {
+  return syscall_safe_wrappers::serialBTBegin();
+}
+
+void BLE_end() {
+  syscall_safe_wrappers::serialBTEnd();
+}
+
+void BLE_advertise() {
+  syscall_safe_wrappers::serialBTAdvertise();
+}
+
+void BLE_stopAdvertise() {
+  syscall_safe_wrappers::serialBTStopAdvertise();
+}
+
+bool BLE_available() {
+  return syscall_safe_wrappers::serialBTAvailable();
+}
+
+bool BLE_connected() {
+  return syscall_safe_wrappers::serialBTConnected();
+}
+
+void BLE_disconnect() {
+  syscall_safe_wrappers::serialBTDisconnect();
+}
+
+bool BLE_central() {
+  return syscall_safe_wrappers::serialBTCentral();
 }
 
 // Shared variable for core 1 entry address (accessed from both cores)

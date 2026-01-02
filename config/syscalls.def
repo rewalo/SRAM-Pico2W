@@ -61,3 +61,36 @@ SYSCALL(multicore_fifo_wready, bool,   ())
 // System functions
 SYSCALL(bootselButton, bool, ())
 SYSCALL(softwareReset, void, ())
+
+// Interrupt support
+// Note: ISR function pointer passed as uintptr_t (cast from void (*)(void))
+SYSCALL(attachInterrupt, void, (uint8_t pin, uintptr_t isr, int mode))
+SYSCALL(detachInterrupt, void, (uint8_t pin))
+
+// WiFi support
+SYSCALL(WiFi_begin, int, (const char* ssid, const char* password))
+SYSCALL(WiFi_begin_open, int, (const char* ssid))
+SYSCALL(WiFi_status, int, ())
+SYSCALL(WiFi_disconnect, int, ())
+SYSCALL(WiFi_localIP, uint32_t, ())
+SYSCALL(WiFi_subnetMask, uint32_t, ())
+SYSCALL(WiFi_gatewayIP, uint32_t, ())
+SYSCALL(WiFi_SSID, const char*, ())
+SYSCALL(WiFi_RSSI, int32_t, ())
+SYSCALL(WiFi_macAddress, uint8_t*, (uint8_t* mac))
+SYSCALL(WiFi_hostname, int, (const char* hostname))
+SYSCALL(WiFi_getHostname, const char*, ())
+
+// Bluetooth/BLE support
+SYSCALL(BLE_begin, bool, ())
+SYSCALL(BLE_end, void, ())
+SYSCALL(BLE_advertise, void, ())
+SYSCALL(BLE_stopAdvertise, void, ())
+SYSCALL(BLE_setAdvertisedServiceData, void, (uint16_t uuid, const uint8_t* data, uint8_t length))
+SYSCALL(BLE_setAdvertisedServiceUuid, void, (const char* uuid))
+SYSCALL(BLE_setLocalName, void, (const char* name))
+SYSCALL(BLE_available, bool, ())
+SYSCALL(BLE_central, bool, ())
+SYSCALL(BLE_connected, bool, ())
+SYSCALL(BLE_disconnect, void, ())
+SYSCALL(BLE_address, const char*, ())

@@ -3,9 +3,19 @@
 #include <stdint.h>
 #include <Arduino.h>  // For Serial
 
-// SRAM region where app code runs
-#define kSramBaseAddr (0x20030000u)
-#define kSramSize (0x00070000u)
+// SRAM region considered safe for passing pointers between app and kernel.
+//
+// IMPORTANT:
+// In this architecture the app's `setup()`/`loop()` run inside a FreeRTOS task
+// created by the kernel. That means many "app" temporary buffers (stack locals)
+// can live on the *kernel task stack* allocated by FreeRTOS, which may be below
+// 0x20030000. If we validate only the SRAM app image window, we incorrectly
+// reject perfectly valid pointers (e.g. Serial print buffers, small arrays like
+// `uint8_t mac[6]`).
+//
+// So we validate against the full RP2350 SRAM span used by this project.
+#define kSramBaseAddr (0x20000000u)
+#define kSramSize (0x000A0000u)  // 640KB -> end at 0x200A0000
 #define kSramEndAddr (kSramBaseAddr + kSramSize)
 
 namespace syscall_validation {

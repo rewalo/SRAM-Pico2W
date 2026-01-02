@@ -179,13 +179,55 @@ prefix_map = {
             "fifo_rvalid": "multicore_fifo_rvalid",
             "fifo_wready": "multicore_fifo_wready",
         }
+    },
+    "WiFi_": {
+        "obj": "WiFi",
+        "safe_wrappers": {
+            "begin": "syscall_safe_wrappers::wifiBegin",
+            "begin_open": "syscall_safe_wrappers::wifiBeginOpen",
+            "status": "syscall_safe_wrappers::wifiStatus",
+            "disconnect": "syscall_safe_wrappers::wifiDisconnect",
+            "localIP": "syscall_safe_wrappers::wifiLocalIP",
+            "subnetMask": "syscall_safe_wrappers::wifiSubnetMask",
+            "gatewayIP": "syscall_safe_wrappers::wifiGatewayIP",
+            "SSID": "syscall_safe_wrappers::wifiSSID",
+            "hostname": "syscall_safe_wrappers::wifiHostname",
+            "getHostname": "syscall_safe_wrappers::wifiGetHostname",
+            "macAddress": "syscall_safe_wrappers::wifiMacAddress",
+        }
+    },
+    "BLE_": {
+        # BLE syscalls map to SerialBT functions (not object methods)
+        "free_functions": {
+            "begin": "BLE_begin",
+            "end": "BLE_end",
+            "advertise": "BLE_advertise",
+            "stopAdvertise": "BLE_stopAdvertise",
+            "available": "BLE_available",
+            "connected": "BLE_connected",
+            "disconnect": "BLE_disconnect",
+            "central": "BLE_central",
+            "address": "syscall_safe_wrappers::bleAddress",
+            "setAdvertisedServiceUuid": "syscall_safe_wrappers::bleSetAdvertisedServiceUuid",
+            "setAdvertisedServiceData": "syscall_safe_wrappers::bleSetAdvertisedServiceData",
+            "setLocalName": "syscall_safe_wrappers::bleSetLocalName",
+        }
+    },
+    "": {
+        # Free functions (no prefix) - attachInterrupt and detachInterrupt
+        # Use :: prefix to explicitly reference global namespace (not arduino::)
+        "free_functions": {
+            "attachInterrupt": "::KernelAttachInterrupt",
+            "detachInterrupt": "::KernelDetachInterrupt",
+        }
     }
 }
 
 # First pass: detect objects from syscall names
 # We auto-detect all objects; overrides are handled in dispatch phase
 # Exclude prefixes that are NOT objects (like namespace prefixes)
-non_object_prefixes = {"multicore"}  # These are prefixes, not object names
+non_object_prefixes = {"multicore", "BLE"}  # These are prefixes, not object names
+# Note: WiFi is an object, BLE is not (it's a namespace of free functions)
 
 for n, ret, args, annot_type, annot_obj, annot_method in syscalls:
     if annot_type == "member":
@@ -232,7 +274,17 @@ for n, ret, args, annot_type, annot_obj, annot_method in syscalls:
     handled = False
     parts_for_prefix = n.split("_", 1) if "_" in n else [n, ""]
     for prefix, cfg in prefix_map.items():
-        if n.startswith(prefix):
+        # Handle empty prefix (free functions without prefix)
+        if prefix == "":
+            if "free_functions" in cfg and n in cfg["free_functions"]:
+                func_name = cfg["free_functions"][n]
+                dispatch += (
+                    f"  case SYSC_{n}: "
+                    f"return detail::invoke<&{func_name}>({arg_list_str});\n"
+                )
+                handled = True
+                break
+        elif n.startswith(prefix):
             key = n[len(prefix):]
             parts = parts_for_prefix  # Reuse for method_name mapping
             if "free_functions" in cfg and key in cfg["free_functions"]:
@@ -375,7 +427,14 @@ for i, (n, ret, args, annot_type, annot_obj, annot_method) in enumerate(syscalls
         handled = False
         parts_for_prefix = n.split("_", 1) if "_" in n else [n, ""]
         for prefix, cfg in prefix_map.items():
-            if n.startswith(prefix):
+            # Handle empty prefix (free functions without prefix)
+            if prefix == "":
+                if "free_functions" in cfg and n in cfg["free_functions"]:
+                    func_name = cfg["free_functions"][n]
+                    invoke_call = f"return detail::invoke<&{func_name}>({arg_list_str});"
+                    handled = True
+                    break
+            elif n.startswith(prefix):
                 key = n[len(prefix):]
                 parts = parts_for_prefix
                 if "free_functions" in cfg and key in cfg["free_functions"]:
@@ -506,7 +565,11 @@ for n, ret, args, _, _, _ in syscalls:
         app += (f"  __syscall_raw(SYSC_{n}, {arg_call_list});\n"
                 f"  return;\n")
     else:
-        app += (f"  return static_cast<{ret}>(__syscall_raw(SYSC_{n}, {arg_call_list}));\n")
+        # Use reinterpret_cast for pointer types, static_cast for other types
+        if "*" in ret or "const char*" in ret:
+            app += (f"  return reinterpret_cast<{ret}>(__syscall_raw(SYSC_{n}, {arg_call_list}));\n")
+        else:
+            app += (f"  return static_cast<{ret}>(__syscall_raw(SYSC_{n}, {arg_call_list}));\n")
     app += "}\n\n"
 
 write_file(os.path.join(APP_GEN, "app_syscalls.h"), app)

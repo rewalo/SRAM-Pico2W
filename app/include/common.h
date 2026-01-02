@@ -22,6 +22,11 @@ typedef enum {
   INPUT_PULLUP = 0x2,
 } PinMode;
 
+// Interrupt modes
+#define CHANGE  0x01
+#define FALLING 0x02
+#define RISING  0x03
+
 // ========= Math Helpers =========
 #define PI          3.14159265358979323846
 #define DEG_TO_RAD  0.01745329251994329577

@@ -174,4 +174,71 @@ inline void multicore_launch_core1(void (*entry)(void)) {
 // They're included via app_syscalls.h, so no wrapper needed
 // Just use BOOTSEL() and softwareReset() directly in your code
 
+// Interrupt support - wraps syscalls to accept function pointers directly
+// Note: The syscall wrappers (attachInterrupt/detachInterrupt with uintptr_t) 
+// are generated in app_syscalls.h. We provide an overload for attachInterrupt that accepts function pointers.
+// detachInterrupt doesn't need an overload since it only takes a pin number.
+// __syscall_raw is already declared in app_syscalls.h, so we can use it directly.
+#include "syscall_ids.h"
+
+// Overload attachInterrupt to accept function pointer (the generated one takes uintptr_t)
+inline void attachInterrupt(uint8_t pin, void (*isr)(), int mode) {
+  // Call the generated syscall wrapper via syscall ID to avoid recursion
+  // __syscall_raw is already declared in app_syscalls.h (included above)
+  // __syscall_raw takes: uint16_t id + 30 uintptr_t args (a0 through a29)
+  // We pass: pin (a0), isr (a1), mode (a2), then 27 zeros (a3-a29) = 30 total uintptr_t
+  #include "syscall_ids.h"
+  __syscall_raw(SYSC_attachInterrupt, 
+    static_cast<uintptr_t>(pin),           // a0
+    reinterpret_cast<uintptr_t>(isr),       // a1
+    static_cast<uintptr_t>(mode),          // a2
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,         // a3-a12 (10 zeros)
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,         // a13-a22 (10 zeros)
+    0, 0, 0, 0, 0, 0, 0                   // a23-a29 (7 zeros)
+  );  // Total: 3 + 10 + 10 + 7 = 30 uintptr_t arguments
+}
+// Note: detachInterrupt(uint8_t) is already generated in app_syscalls.h, so we don't need to wrap it
+
+// WiFi proxy - forwards calls to syscall wrappers
+struct WiFiProxy {
+  inline int begin(const char* ssid, const char* password) { return WiFi_begin(ssid, password); }
+  inline int begin(const char* ssid) { return WiFi_begin_open(ssid); }
+  inline int status() { return WiFi_status(); }
+  inline int disconnect() { return WiFi_disconnect(); }
+  inline uint32_t localIP() { return WiFi_localIP(); }
+  inline uint32_t subnetMask() { return WiFi_subnetMask(); }
+  inline uint32_t gatewayIP() { return WiFi_gatewayIP(); }
+  inline const char* SSID() { return WiFi_SSID(); }
+  inline int32_t RSSI() { return WiFi_RSSI(); }
+  inline uint8_t* macAddress(uint8_t* mac) { return WiFi_macAddress(mac); }
+  inline int hostname(const char* hostname) { return WiFi_hostname(hostname); }
+  inline const char* getHostname() { return WiFi_getHostname(); }
+};
+
+// Global WiFi object for app code
+inline WiFiProxy WiFi;
+
+// BLE proxy - forwards calls to syscall wrappers
+struct BLEProxy {
+  inline bool begin() { return BLE_begin(); }
+  inline void end() { return BLE_end(); }
+  inline void advertise() { return BLE_advertise(); }
+  inline void stopAdvertise() { return BLE_stopAdvertise(); }
+  inline void setAdvertisedServiceData(uint16_t uuid, const uint8_t* data, uint8_t length) {
+    return BLE_setAdvertisedServiceData(uuid, data, length);
+  }
+  inline void setAdvertisedServiceUuid(const char* uuid) {
+    return BLE_setAdvertisedServiceUuid(uuid);
+  }
+  inline void setLocalName(const char* name) { return BLE_setLocalName(name); }
+  inline bool available() { return BLE_available(); }
+  inline bool central() { return BLE_central(); }
+  inline bool connected() { return BLE_connected(); }
+  inline void disconnect() { return BLE_disconnect(); }
+  inline const char* address() { return BLE_address(); }
+};
+
+// Global BLE object for app code
+inline BLEProxy BLE;
+
 #endif

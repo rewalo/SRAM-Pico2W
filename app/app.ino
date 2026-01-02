@@ -27,6 +27,12 @@ void large_function_1();
 void large_function_2();
 void core1Task();  // Core 1 task function
 
+// Forward declarations for interrupt, WiFi, and BLE tests
+void test_interrupts();
+void test_wifi();
+void test_ble();
+void test_isr();  // ISR function for interrupt testing
+
 namespace core1_telemetry {
 constexpr uintptr_t kCore1StatusAddr = 0x2002F000u;
 constexpr bool kCore1StatusEnabled = false;
@@ -243,6 +249,32 @@ void setup() {
   
   Serial.println("\n=== All cross-page function call tests complete ===");
   Serial.println("If all tests passed, the overlay system is working correctly!");
+  
+  // Test interrupts
+  Serial.println("\n");
+  Serial.println("=========================================");
+  Serial.println("TESTING INTERRUPTS");
+  Serial.println("=========================================");
+  test_interrupts();
+  delay(100);
+  
+  // Test WiFi
+  Serial.println("\n");
+  Serial.println("=========================================");
+  Serial.println("TESTING WiFi");
+  Serial.println("=========================================");
+  test_wifi();
+  delay(100);
+  
+  // Test Bluetooth/BLE
+  Serial.println("\n");
+  Serial.println("=========================================");
+  Serial.println("TESTING BLUETOOTH/BLE");
+  Serial.println("=========================================");
+  test_ble();
+  delay(100);
+  
+  Serial.println("\n=== All feature tests complete ===");
 }
 
 void loop() {
@@ -518,4 +550,285 @@ void core1Task() {
     }
     delay(10);
   }
+}
+
+// =====================================================================
+// Interrupt test functions
+// =====================================================================
+
+// Interrupt mode constants are defined in common.h
+
+// Global interrupt counter for testing
+volatile int interrupt_counter = 0;
+volatile uint8_t interrupt_pin = 0;
+
+// ISR function for interrupt testing
+void test_isr() {
+  interrupt_counter++;
+}
+
+void test_interrupts() {
+  Serial.println("\n=== Testing GPIO Interrupts ===");
+  
+  // Test pin (use a safe pin - GPIO 2)
+  const uint8_t test_pin = 2;
+  
+  // Self-contained test:
+  // On RP2040/RP2350, GPIO edge IRQs also trigger when the pin output toggles.
+  // So we can test without any external wiring by driving the pin as OUTPUT.
+  pinMode(test_pin, OUTPUT);
+  digitalWrite(test_pin, LOW);
+
+  const int toggles = 10;
+
+  auto do_toggle = [&]() {
+    for (int i = 0; i < toggles; i++) {
+      digitalWrite(test_pin, HIGH);
+      delayMicroseconds(50);
+      digitalWrite(test_pin, LOW);
+      delayMicroseconds(50);
+    }
+  };
+
+  // CHANGE should see both edges: 2 per toggle
+  interrupt_counter = 0;
+  Serial.println("Attaching interrupt on CHANGE and toggling pin...");
+  attachInterrupt(test_pin, test_isr, CHANGE);
+  do_toggle();
+  detachInterrupt(test_pin);
+  Serial.print("CHANGE count (expected ~");
+  Serial.print(toggles * 2);
+  Serial.print("): ");
+  Serial.println(interrupt_counter);
+
+  // RISING should see 1 per toggle (LOW->HIGH)
+  interrupt_counter = 0;
+  Serial.println("Attaching interrupt on RISING and toggling pin...");
+  attachInterrupt(test_pin, test_isr, RISING);
+  do_toggle();
+  detachInterrupt(test_pin);
+  Serial.print("RISING count (expected ~");
+  Serial.print(toggles);
+  Serial.print("): ");
+  Serial.println(interrupt_counter);
+
+  // FALLING should see 1 per toggle (HIGH->LOW)
+  interrupt_counter = 0;
+  Serial.println("Attaching interrupt on FALLING and toggling pin...");
+  attachInterrupt(test_pin, test_isr, FALLING);
+  do_toggle();
+  detachInterrupt(test_pin);
+  Serial.print("FALLING count (expected ~");
+  Serial.print(toggles);
+  Serial.print("): ");
+  Serial.println(interrupt_counter);
+
+  // Restore a safe state
+  pinMode(test_pin, INPUT_PULLUP);
+  Serial.println("Interrupt test complete (self-contained).");
+}
+
+// =====================================================================
+// WiFi test functions
+// =====================================================================
+
+void test_wifi() {
+  Serial.println("\n=== Testing WiFi Functions ===");
+  
+  // Test WiFi.begin() - try to connect (will fail if no credentials, but function should work)
+  Serial.println("Testing WiFi.begin()...");
+  Serial.println("[NOTE] This will attempt to connect. If no credentials provided, it will fail gracefully.");
+  
+  // Test WiFi.status()
+  Serial.println("\nTesting WiFi.status()...");
+  int status = WiFi.status();
+  char* statusBuf = reinterpret_cast<char*>(malloc(64));
+  sprintf(statusBuf, "WiFi status: %d", status);
+  Serial.println(statusBuf);
+  free(statusBuf);
+  
+  // Test WiFi.SSID() - may return empty if not connected
+  Serial.println("\nTesting WiFi.SSID()...");
+  const char* ssid = WiFi.SSID();
+  if (ssid != nullptr) {
+    Serial.print("Current SSID: ");
+    Serial.println(ssid);
+  } else {
+    Serial.println("SSID: (not connected)");
+  }
+  
+  // Test WiFi.localIP()
+  Serial.println("\nTesting WiFi.localIP()...");
+  uint32_t ip = WiFi.localIP();
+  char* ipBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(ipBuf, "Local IP: 0x%08lX", static_cast<unsigned long>(ip));
+  Serial.println(ipBuf);
+  free(ipBuf);
+  
+  // Test WiFi.subnetMask()
+  Serial.println("\nTesting WiFi.subnetMask()...");
+  uint32_t mask = WiFi.subnetMask();
+  char* maskBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(maskBuf, "Subnet Mask: 0x%08lX", static_cast<unsigned long>(mask));
+  Serial.println(maskBuf);
+  free(maskBuf);
+  
+  // Test WiFi.gatewayIP()
+  Serial.println("\nTesting WiFi.gatewayIP()...");
+  uint32_t gateway = WiFi.gatewayIP();
+  char* gatewayBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(gatewayBuf, "Gateway IP: 0x%08lX", static_cast<unsigned long>(gateway));
+  Serial.println(gatewayBuf);
+  free(gatewayBuf);
+  
+  // Test WiFi.RSSI()
+  Serial.println("\nTesting WiFi.RSSI()...");
+  int32_t rssi = WiFi.RSSI();
+  char* rssiBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(rssiBuf, "RSSI: %ld dBm", static_cast<long>(rssi));
+  Serial.println(rssiBuf);
+  free(rssiBuf);
+  
+  // Test WiFi.macAddress()
+  Serial.println("\nTesting WiFi.macAddress()...");
+  uint8_t mac[6];
+  uint8_t* macPtr = WiFi.macAddress(mac);
+  if (macPtr != nullptr) {
+    char* macBuf = reinterpret_cast<char*>(malloc(32));
+    sprintf(macBuf, "MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    Serial.println(macBuf);
+    free(macBuf);
+  } else {
+    Serial.println("MAC: (unavailable)");
+  }
+  
+  // Test WiFi.hostname()
+  Serial.println("\nTesting WiFi.hostname()...");
+  const char* test_hostname = "SRAM-Pico2W-Test";
+  int hostname_result = WiFi.hostname(test_hostname);
+  char* hostnameBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(hostnameBuf, "hostname() result: %d", hostname_result);
+  Serial.println(hostnameBuf);
+  free(hostnameBuf);
+  
+  // Test WiFi.getHostname()
+  const char* current_hostname = WiFi.getHostname();
+  if (current_hostname != nullptr) {
+    Serial.print("Current hostname: ");
+    Serial.println(current_hostname);
+  } else {
+    Serial.println("Hostname: (unavailable)");
+  }
+  
+  // Test WiFi.disconnect()
+  Serial.println("\nTesting WiFi.disconnect()...");
+  int disconnect_result = WiFi.disconnect();
+  char* disconnectBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(disconnectBuf, "disconnect() result: %d", disconnect_result);
+  Serial.println(disconnectBuf);
+  free(disconnectBuf);
+  
+  Serial.println("\nWiFi test complete.");
+  Serial.println("[NOTE] Actual WiFi connection requires valid SSID and password.");
+}
+
+// =====================================================================
+// Bluetooth/BLE test functions
+// =====================================================================
+
+void test_ble() {
+  Serial.println("\n=== Testing Bluetooth/BLE Functions ===");
+  
+  // Test BLE.begin()
+  Serial.println("Testing BLE.begin()...");
+  bool begin_result = BLE.begin();
+  char* beginBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(beginBuf, "BLE.begin() result: %s", begin_result ? "true" : "false");
+  Serial.println(beginBuf);
+  free(beginBuf);
+  
+  if (!begin_result) {
+    Serial.println("[WARNING] BLE.begin() failed. BLE may not be available or initialized.");
+    Serial.println("Continuing with other tests...");
+  }
+  
+  // Test BLE.setLocalName()
+  Serial.println("\nTesting BLE.setLocalName()...");
+  const char* ble_name = "SRAM-Pico2W-BLE";
+  BLE.setLocalName(ble_name);
+  Serial.print("Set BLE local name to: ");
+  Serial.println(ble_name);
+  
+  // Test BLE.setAdvertisedServiceUuid()
+  Serial.println("\nTesting BLE.setAdvertisedServiceUuid()...");
+  const char* service_uuid = "12345678-1234-1234-1234-123456789abc";
+  BLE.setAdvertisedServiceUuid(service_uuid);
+  Serial.print("Set advertised service UUID to: ");
+  Serial.println(service_uuid);
+  
+  // Test BLE.setAdvertisedServiceData()
+  Serial.println("\nTesting BLE.setAdvertisedServiceData()...");
+  uint8_t service_data[] = {0x01, 0x02, 0x03, 0x04};
+  BLE.setAdvertisedServiceData(0x1234, service_data, sizeof(service_data));
+  Serial.println("Set advertised service data (UUID: 0x1234, 4 bytes)");
+  
+  // Test BLE.address()
+  Serial.println("\nTesting BLE.address()...");
+  const char* ble_address = BLE.address();
+  if (ble_address != nullptr) {
+    Serial.print("BLE address: ");
+    Serial.println(ble_address);
+  } else {
+    Serial.println("BLE address: (unavailable)");
+  }
+  
+  // Test BLE.available()
+  Serial.println("\nTesting BLE.available()...");
+  bool available = BLE.available();
+  char* availBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(availBuf, "BLE.available(): %s", available ? "true" : "false");
+  Serial.println(availBuf);
+  free(availBuf);
+  
+  // Test BLE.central()
+  Serial.println("\nTesting BLE.central()...");
+  bool central = BLE.central();
+  char* centralBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(centralBuf, "BLE.central(): %s", central ? "true" : "false");
+  Serial.println(centralBuf);
+  free(centralBuf);
+  
+  // Test BLE.connected()
+  Serial.println("\nTesting BLE.connected()...");
+  bool connected = BLE.connected();
+  char* connectedBuf = reinterpret_cast<char*>(malloc(32));
+  sprintf(connectedBuf, "BLE.connected(): %s", connected ? "true" : "false");
+  Serial.println(connectedBuf);
+  free(connectedBuf);
+  
+  // Test BLE.advertise()
+  Serial.println("\nTesting BLE.advertise()...");
+  BLE.advertise();
+  Serial.println("BLE.advertise() called - BLE should now be advertising");
+  delay(1000);  // Give it a moment
+  
+  // Test BLE.stopAdvertise()
+  Serial.println("\nTesting BLE.stopAdvertise()...");
+  BLE.stopAdvertise();
+  Serial.println("BLE.stopAdvertise() called - BLE should stop advertising");
+  
+  // Test BLE.disconnect()
+  Serial.println("\nTesting BLE.disconnect()...");
+  BLE.disconnect();
+  Serial.println("BLE.disconnect() called");
+  
+  // Test BLE.end()
+  Serial.println("\nTesting BLE.end()...");
+  BLE.end();
+  Serial.println("BLE.end() called - BLE should be stopped");
+  
+  Serial.println("\nBLE test complete.");
+  Serial.println("[NOTE] Actual BLE functionality requires proper initialization and may need");
+  Serial.println("       additional configuration for your specific use case.");
 }

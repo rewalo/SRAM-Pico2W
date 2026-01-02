@@ -71,7 +71,12 @@ static inline uintptr_t invoke_impl_free(const uintptr_t raw[MAX_SYSCALL_ARGS],
                          cast_arg_uintptr<
                              std::tuple_element_t<I, typename F::args>>(
                              raw[I])...);
-    return static_cast<uintptr_t>(r);
+    // Use reinterpret_cast for pointer types, static_cast for others
+    if constexpr (std::is_pointer_v<typename F::ret>) {
+      return reinterpret_cast<uintptr_t>(r);
+    } else {
+      return static_cast<uintptr_t>(r);
+    }
   }
 }
 
@@ -111,7 +116,12 @@ static inline uintptr_t invoke_impl_method(const uintptr_t raw[MAX_SYSCALL_ARGS]
                          cast_arg_uintptr<
                              std::tuple_element_t<I, typename M::args>>(
                              raw[I])...);
-    return static_cast<uintptr_t>(r);
+    // Use reinterpret_cast for pointer types, static_cast for others
+    if constexpr (std::is_pointer_v<typename M::ret>) {
+      return reinterpret_cast<uintptr_t>(r);
+    } else {
+      return static_cast<uintptr_t>(r);
+    }
   }
 }
 
